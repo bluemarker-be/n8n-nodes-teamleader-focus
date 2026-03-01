@@ -2,7 +2,9 @@
 	"name": "n8n-nodes-teamleader-focus",
 	"version": "0.1.0",
 	"description": "n8n community node for Teamleader Focus",
-	"keywords": ["n8n-community-node-package"],
+	"keywords": [
+		"n8n-community-node-package"
+	],
 	"license": "MIT",
 	"homepage": "",
 	"author": {
@@ -21,7 +23,9 @@
 		"lint:fix": "n8n-node lint --fix",
 		"prepublishOnly": "npm run build"
 	},
-	"files": ["dist"],
+	"files": [
+		"dist"
+	],
 	"n8n": {
 		"n8nNodesApiVersion": 1,
 		"strict": true,
@@ -29,7 +33,8 @@
 			"dist/credentials/TeamleaderFocusOAuth2Api.credentials.js"
 		],
 		"nodes": [
-			"dist/nodes/TeamleaderFocus/TeamleaderFocus.node.js"
+			"dist/nodes/TeamleaderFocus/TeamleaderFocus.node.js",
+			"dist/nodes/TeamleaderFocus/TeamleaderFocusTrigger.node.js"
 		]
 	},
 	"peerDependencies": {
@@ -37,6 +42,7 @@
 	},
 	"devDependencies": {
 		"@n8n/node-cli": "^0.1.0",
+		"@types/node": "^25.3.3",
 		"eslint": "^9.0.0",
 		"n8n-workflow": "*",
 		"prettier": "^3.2.0",
