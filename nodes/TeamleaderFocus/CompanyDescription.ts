@@ -113,6 +113,12 @@ export const companyFields: INodeProperties[] = [
 				default: '',
 			},
 			{
+				displayName: 'National Identification Number',
+				name: 'national_identification_number',
+				type: 'string',
+				default: '',
+			},
+			{
 				displayName: 'Preferred Currency',
 				name: 'preferred_currency',
 				type: 'options',
@@ -423,6 +429,39 @@ export const companyFields: INodeProperties[] = [
 				default: [],
 				description:
 					'Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'National Identification Number',
+				name: 'national_identification_number',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'IBAN',
+				name: 'iban',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'BIC',
+				name: 'bic',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'Marketing Mails Consent',
+				name: 'marketing_mails_consent',
+				type: 'boolean',
+				default: false,
+			},
+			{
+				displayName: 'Preferred Currency',
+				name: 'preferred_currency',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getCurrencies' },
+				default: '',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
 		],
 	},

@@ -43,17 +43,6 @@ export const incomingInvoiceFields: INodeProperties[] = [
 		description: 'Title of the incoming invoice',
 	},
 	{
-		displayName: 'Department Name or ID',
-		name: 'departmentId',
-		type: 'options',
-		typeOptions: { loadOptionsMethod: 'getDepartments' },
-		required: true,
-		default: '',
-		displayOptions: { show: { resource: ['incomingInvoice'], operation: ['add'] } },
-		description:
-			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
-	},
-	{
 		displayName: 'Currency Code',
 		name: 'currencyCode',
 		type: 'options',
@@ -73,24 +62,15 @@ export const incomingInvoiceFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['incomingInvoice'], operation: ['add'] } },
 		options: [
 			{
-				displayName: 'Supplier Type',
-				name: 'supplier_type',
-				type: 'options',
-				options: [
-					{ name: 'Contact', value: 'contact' },
-					{ name: 'Company', value: 'company' },
-				],
-				default: 'company',
-			},
-			{
 				displayName: 'Supplier ID',
 				name: 'supplier_id',
 				type: 'string',
 				default: '',
+				description: 'ID of the supplier (company)',
 			},
 			{
-				displayName: 'Invoice Number',
-				name: 'invoice_number',
+				displayName: 'Document Number',
+				name: 'document_number',
 				type: 'string',
 				default: '',
 			},
@@ -121,6 +101,30 @@ export const incomingInvoiceFields: INodeProperties[] = [
 				typeOptions: { numberPrecision: 2 },
 				default: 0,
 				description: 'Total amount including tax',
+			},
+			{
+				displayName: 'Company Entity ID',
+				name: 'company_entity_id',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'File ID',
+				name: 'file_id',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'Payment Reference',
+				name: 'payment_reference',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'IBAN Number',
+				name: 'iban_number',
+				type: 'string',
+				default: '',
 			},
 		],
 	},
@@ -294,8 +298,14 @@ export const incomingInvoiceFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['incomingInvoice'], operation: ['update'] } },
 		options: [
 			{
-				displayName: 'Invoice Number',
-				name: 'invoice_number',
+				displayName: 'Title',
+				name: 'title',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'Document Number',
+				name: 'document_number',
 				type: 'string',
 				default: '',
 			},
@@ -333,6 +343,30 @@ export const incomingInvoiceFields: INodeProperties[] = [
 				default: '',
 				description:
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Company Entity ID',
+				name: 'company_entity_id',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'File ID',
+				name: 'file_id',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'Payment Reference',
+				name: 'payment_reference',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'IBAN Number',
+				name: 'iban_number',
+				type: 'string',
+				default: '',
 			},
 		],
 	},

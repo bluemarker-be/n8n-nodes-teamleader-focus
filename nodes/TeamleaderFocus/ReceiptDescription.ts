@@ -168,6 +168,27 @@ export const receiptFields: INodeProperties[] = [
 				default: 0,
 				description: 'Total amount including tax',
 			},
+			{
+				displayName: 'Currency Code',
+				name: 'currency_code',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getCurrencies' },
+				default: '',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Company Entity ID',
+				name: 'company_entity_id',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'File ID',
+				name: 'file_id',
+				type: 'string',
+				default: '',
+			},
 		],
 	},
 

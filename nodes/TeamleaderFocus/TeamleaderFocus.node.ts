@@ -921,12 +921,8 @@ export class TeamleaderFocus implements INodeType {
 					} else if (operation === 'update') {
 						const body: IDataObject = {
 							id: this.getNodeParameter('id', i) as string,
+							name: this.getNodeParameter('name', i) as string,
 						};
-						const updateFields = this.getNodeParameter(
-							'updateFields',
-							i,
-						) as IDataObject;
-						assignDefined(body, updateFields);
 						responseData = await teamleaderApiRequest.call(
 							this,
 							'POST',
@@ -976,6 +972,12 @@ export class TeamleaderFocus implements INodeType {
 								unit: this.getNodeParameter('requiresAttentionAfterUnit', i) as string,
 							},
 						};
+						try {
+							const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+							assignDefined(phaseBody, additionalFields);
+						} catch {
+							// No additional fields
+						}
 						responseData = await teamleaderApiRequest.call(
 							this,
 							'POST',
@@ -997,20 +999,16 @@ export class TeamleaderFocus implements INodeType {
 					} else if (operation === 'update') {
 						const body: IDataObject = {
 							id: this.getNodeParameter('id', i) as string,
+							name: this.getNodeParameter('name', i) as string,
+							requires_attention_after: {
+								amount: this.getNodeParameter('requiresAttentionAfterAmount', i) as number,
+								unit: this.getNodeParameter('requiresAttentionAfterUnit', i) as string,
+							},
 						};
 						const updateFields = this.getNodeParameter(
 							'updateFields',
 							i,
 						) as IDataObject;
-						// Nest requires_attention_after
-						if (updateFields.requires_attention_after_amount !== undefined) {
-							body.requires_attention_after = {
-								amount: updateFields.requires_attention_after_amount,
-								unit: updateFields.requires_attention_after_unit || 'calendar_days',
-							};
-							delete updateFields.requires_attention_after_amount;
-							delete updateFields.requires_attention_after_unit;
-						}
 						assignDefined(body, updateFields);
 						responseData = await teamleaderApiRequest.call(
 							this,
@@ -1049,10 +1047,10 @@ export class TeamleaderFocus implements INodeType {
 						continue;
 					}
 					responseData = await handleResourceOperation.call(this, i, 'quotation', operation, {
-						create: { endpoint: '/quotations.create', requiredFields: ['customerType', 'customerId', 'groupedLines'], buildBody: buildQuotationBody },
+						create: { endpoint: '/quotations.create', requiredFields: ['dealId'], buildBody: buildQuotationBody },
 						get: { endpoint: '/quotations.info', idField: 'id' },
 						getMany: { endpoint: '/quotations.list' },
-						update: { endpoint: '/quotations.update', idField: 'id', hasUpdateFields: true },
+						update: { endpoint: '/quotations.update', buildBody: buildQuotationUpdateBody },
 						delete: { endpoint: '/quotations.delete', idField: 'id' },
 						send: { endpoint: '/quotations.send', buildBody: buildQuotationSendBody },
 						accept: { endpoint: '/quotations.accept', idField: 'id' },
@@ -1079,7 +1077,7 @@ export class TeamleaderFocus implements INodeType {
 						send: { endpoint: '/invoices.send', buildBody: buildInvoiceSendBody },
 						registerPayment: { endpoint: '/invoices.registerPayment', buildBody: buildInvoicePaymentBody },
 						removePayments: { endpoint: '/invoices.removePayments', idField: 'id' },
-						credit: { endpoint: '/invoices.credit', idField: 'id' },
+						credit: { endpoint: '/invoices.credit', buildBody: buildInvoiceCreditBody },
 						creditPartially: { endpoint: '/invoices.creditPartially', buildBody: buildInvoiceCreditPartiallyBody },
 						delete: { endpoint: '/invoices.delete', idField: 'id' },
 						sendViaPeppol: { endpoint: '/invoices.sendViaPeppol', idField: 'id' },
@@ -1110,22 +1108,53 @@ export class TeamleaderFocus implements INodeType {
 				// ==============================
 				else if (resource === 'subscription') {
 					if (operation === 'create') {
+						const invoicee: IDataObject = {
+							customer: {
+								type: this.getNodeParameter('customerType', i) as string,
+								id: this.getNodeParameter('customerId', i) as string,
+							},
+						};
+						const billingCycle: IDataObject = {
+							unit: this.getNodeParameter('billingCycleUnit', i) as string,
+							period: this.getNodeParameter('billingCyclePeriod', i) as number,
+							days_in_advance: this.getNodeParameter('billingCycleDaysInAdvance', i) as number,
+						};
+						const paymentTerm: IDataObject = {
+							type: this.getNodeParameter('paymentTermType', i) as string,
+							days: this.getNodeParameter('paymentTermDays', i) as number,
+						};
+						const invoiceGeneration: IDataObject = {
+							action: this.getNodeParameter('invoiceGenerationAction', i) as string,
+						};
+						const invoiceGenPaymentMethod = this.getNodeParameter('invoiceGenerationPaymentMethod', i, '') as string;
+						if (invoiceGenPaymentMethod) {
+							invoiceGeneration.payment_method = invoiceGenPaymentMethod;
+						}
+						if (invoiceGeneration.action === 'book_and_send') {
+							invoiceGeneration.sending_methods = this.getNodeParameter('invoiceGenerationSendingMethods', i, []) as string[];
+						}
+						const groupedLinesRaw = this.getNodeParameter('groupedLines', i) as string;
 						const body: IDataObject = {
 							title: this.getNodeParameter('title', i) as string,
-							invoicee: {
-								customer: {
-									type: this.getNodeParameter('customerType', i) as string,
-									id: this.getNodeParameter('customerId', i) as string,
-								},
-							},
+							invoicee,
 							department_id: this.getNodeParameter('departmentId', i) as string,
 							starts_on: this.getNodeParameter('startsOn', i) as string,
-							billing_cycle: JSON.parse(this.getNodeParameter('billingCycle', i) as string),
-							grouped_lines: JSON.parse(this.getNodeParameter('groupedLines', i) as string),
-							payment_term: JSON.parse(this.getNodeParameter('paymentTerm', i) as string),
-							invoice_generation: JSON.parse(this.getNodeParameter('invoiceGeneration', i) as string),
+							billing_cycle: billingCycle,
+							grouped_lines: typeof groupedLinesRaw === 'string' ? JSON.parse(groupedLinesRaw) : groupedLinesRaw,
+							payment_term: paymentTerm,
+							invoice_generation: invoiceGeneration,
 						};
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						// Handle for_attention_of fields
+						if (additionalFields.for_attention_of_name) {
+							invoicee.for_attention_of = { name: additionalFields.for_attention_of_name };
+							delete additionalFields.for_attention_of_name;
+						} else if (additionalFields.for_attention_of_contact_id) {
+							invoicee.for_attention_of = { contact_id: additionalFields.for_attention_of_contact_id };
+							delete additionalFields.for_attention_of_contact_id;
+						}
+						delete additionalFields.for_attention_of_name;
+						delete additionalFields.for_attention_of_contact_id;
 						assignDefined(body, additionalFields);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/subscriptions.create', body);
 					} else if (operation === 'get') {
@@ -1135,23 +1164,63 @@ export class TeamleaderFocus implements INodeType {
 					} else if (operation === 'update') {
 						const body: IDataObject = { id: this.getNodeParameter('id', i) as string };
 						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
-						// Parse billing_cycle JSON if provided
-						if (updateFields.billing_cycle) {
-							body.billing_cycle = typeof updateFields.billing_cycle === 'string'
-								? JSON.parse(updateFields.billing_cycle as string) : updateFields.billing_cycle;
-							delete updateFields.billing_cycle;
+						// Nest invoicee if customer fields provided
+						if (updateFields.customer_type && updateFields.customer_id) {
+							const invoicee: IDataObject = {
+								customer: { type: updateFields.customer_type, id: updateFields.customer_id },
+							};
+							if (updateFields.for_attention_of_name) {
+								invoicee.for_attention_of = { name: updateFields.for_attention_of_name };
+							} else if (updateFields.for_attention_of_contact_id) {
+								invoicee.for_attention_of = { contact_id: updateFields.for_attention_of_contact_id };
+							}
+							body.invoicee = invoicee;
+							delete updateFields.customer_type;
+							delete updateFields.customer_id;
+							delete updateFields.for_attention_of_name;
+							delete updateFields.for_attention_of_contact_id;
 						}
-						// Parse payment_term JSON if provided
-						if (updateFields.payment_term) {
-							body.payment_term = typeof updateFields.payment_term === 'string'
-								? JSON.parse(updateFields.payment_term as string) : updateFields.payment_term;
-							delete updateFields.payment_term;
+						// Build billing_cycle from structured fields
+						if (updateFields.billing_cycle_unit) {
+							body.billing_cycle = {
+								unit: updateFields.billing_cycle_unit,
+								period: updateFields.billing_cycle_period || 1,
+								days_in_advance: updateFields.billing_cycle_days_in_advance ?? 0,
+							};
+							delete updateFields.billing_cycle_unit;
+							delete updateFields.billing_cycle_period;
+							delete updateFields.billing_cycle_days_in_advance;
+						}
+						// Build payment_term from structured fields
+						if (updateFields.payment_term_type) {
+							body.payment_term = {
+								type: updateFields.payment_term_type,
+								days: updateFields.payment_term_days ?? 30,
+							};
+							delete updateFields.payment_term_type;
+							delete updateFields.payment_term_days;
 						}
 						// Parse grouped_lines JSON if provided
 						if (updateFields.grouped_lines) {
 							body.grouped_lines = typeof updateFields.grouped_lines === 'string'
 								? JSON.parse(updateFields.grouped_lines as string) : updateFields.grouped_lines;
 							delete updateFields.grouped_lines;
+						}
+						// Build invoice_generation from structured fields
+						if (updateFields.invoice_generation_action) {
+							const invoiceGen: IDataObject = {
+								action: updateFields.invoice_generation_action,
+							};
+							if (updateFields.invoice_generation_payment_method) {
+								invoiceGen.payment_method = updateFields.invoice_generation_payment_method;
+							}
+							if (updateFields.invoice_generation_action === 'book_and_send' && updateFields.invoice_generation_sending_methods) {
+								invoiceGen.sending_methods = updateFields.invoice_generation_sending_methods;
+							}
+							body.invoice_generation = invoiceGen;
+							delete updateFields.invoice_generation_action;
+							delete updateFields.invoice_generation_payment_method;
+							delete updateFields.invoice_generation_sending_methods;
 						}
 						assignDefined(body, updateFields);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/subscriptions.update', body);
@@ -1202,15 +1271,9 @@ export class TeamleaderFocus implements INodeType {
 					} else if (operation === 'add') {
 						const addBody: IDataObject = {
 							title: this.getNodeParameter('title', i) as string,
-							department_id: this.getNodeParameter('departmentId', i) as string,
 							currency: { code: this.getNodeParameter('currencyCode', i) as string },
 						};
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
-						if (additionalFields.supplier_type && additionalFields.supplier_id) {
-							addBody.supplier = { type: additionalFields.supplier_type, id: additionalFields.supplier_id };
-							delete additionalFields.supplier_type;
-							delete additionalFields.supplier_id;
-						}
 						if (additionalFields.total_tax_exclusive !== undefined || additionalFields.total_tax_inclusive !== undefined) {
 							addBody.total = {} as IDataObject;
 							if (additionalFields.total_tax_exclusive !== undefined) {
@@ -1298,15 +1361,9 @@ export class TeamleaderFocus implements INodeType {
 					} else if (operation === 'add') {
 						const addBody: IDataObject = {
 							title: this.getNodeParameter('title', i) as string,
-							department_id: this.getNodeParameter('departmentId', i) as string,
 							currency: { code: this.getNodeParameter('currencyCode', i) as string },
 						};
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
-						if (additionalFields.supplier_type && additionalFields.supplier_id) {
-							addBody.supplier = { type: additionalFields.supplier_type, id: additionalFields.supplier_id };
-							delete additionalFields.supplier_type;
-							delete additionalFields.supplier_id;
-						}
 						if (additionalFields.total_tax_exclusive !== undefined || additionalFields.total_tax_inclusive !== undefined) {
 							addBody.total = {} as IDataObject;
 							if (additionalFields.total_tax_exclusive !== undefined) {
@@ -1364,16 +1421,16 @@ export class TeamleaderFocus implements INodeType {
 							ends_at: this.getNodeParameter('ends_at', i) as string,
 						};
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
-						// Parse attendees JSON array
+						// Extract attendees from fixedCollection
 						if (additionalFields.attendees) {
-							body.attendees = typeof additionalFields.attendees === 'string'
-								? JSON.parse(additionalFields.attendees as string) : additionalFields.attendees;
+							const attendeesData = additionalFields.attendees as IDataObject;
+							body.attendees = ((attendeesData?.attendee as IDataObject[]) || []).map((a: IDataObject) => ({ type: a.type, id: a.id }));
 							delete additionalFields.attendees;
 						}
-						// Parse links JSON array
+						// Extract links from fixedCollection
 						if (additionalFields.links) {
-							body.links = typeof additionalFields.links === 'string'
-								? JSON.parse(additionalFields.links as string) : additionalFields.links;
+							const linksData = additionalFields.links as IDataObject;
+							body.links = ((linksData?.link as IDataObject[]) || []).map((l: IDataObject) => ({ type: l.type, id: l.id }));
 							delete additionalFields.links;
 						}
 						assignDefined(body, additionalFields);
@@ -1385,16 +1442,16 @@ export class TeamleaderFocus implements INodeType {
 					} else if (operation === 'update') {
 						const body: IDataObject = { id: this.getNodeParameter('id', i) as string };
 						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
-						// Parse attendees JSON array
+						// Extract attendees from fixedCollection
 						if (updateFields.attendees) {
-							body.attendees = typeof updateFields.attendees === 'string'
-								? JSON.parse(updateFields.attendees as string) : updateFields.attendees;
+							const attendeesData = updateFields.attendees as IDataObject;
+							body.attendees = ((attendeesData?.attendee as IDataObject[]) || []).map((a: IDataObject) => ({ type: a.type, id: a.id }));
 							delete updateFields.attendees;
 						}
-						// Parse links JSON array
+						// Extract links from fixedCollection
 						if (updateFields.links) {
-							body.links = typeof updateFields.links === 'string'
-								? JSON.parse(updateFields.links as string) : updateFields.links;
+							const linksData = updateFields.links as IDataObject;
+							body.links = ((linksData?.link as IDataObject[]) || []).map((l: IDataObject) => ({ type: l.type, id: l.id }));
 							delete updateFields.links;
 						}
 						assignDefined(body, updateFields);
@@ -1409,12 +1466,13 @@ export class TeamleaderFocus implements INodeType {
 				// ==============================
 				else if (resource === 'meeting') {
 					if (operation === 'schedule') {
-						const attendeesRaw = this.getNodeParameter('attendees', i) as string;
+						const attendeesData = this.getNodeParameter('attendees', i) as IDataObject;
+						const attendees = ((attendeesData?.attendee as IDataObject[]) || []).map((a: IDataObject) => ({ type: a.type, id: a.id }));
 						const body: IDataObject = {
 							title: this.getNodeParameter('title', i) as string,
 							starts_at: this.getNodeParameter('starts_at', i) as string,
 							ends_at: this.getNodeParameter('ends_at', i) as string,
-							attendees: typeof attendeesRaw === 'string' ? JSON.parse(attendeesRaw) : attendeesRaw,
+							attendees,
 						};
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
 						// Nest customer if provided
@@ -1424,6 +1482,7 @@ export class TeamleaderFocus implements INodeType {
 						delete additionalFields.customer_type;
 						delete additionalFields.customer_id;
 						assignDefined(body, additionalFields);
+						addCustomFieldsToBody.call(this, body, i);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/meetings.schedule', body);
 					} else if (operation === 'get') {
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/meetings.info', { id: this.getNodeParameter('id', i) as string });
@@ -1432,10 +1491,10 @@ export class TeamleaderFocus implements INodeType {
 					} else if (operation === 'update') {
 						const body: IDataObject = { id: this.getNodeParameter('id', i) as string };
 						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
-						// Parse attendees JSON if provided
+						// Extract attendees from fixedCollection
 						if (updateFields.attendees) {
-							body.attendees = typeof updateFields.attendees === 'string'
-								? JSON.parse(updateFields.attendees as string) : updateFields.attendees;
+							const attendeesData = updateFields.attendees as IDataObject;
+							body.attendees = ((attendeesData?.attendee as IDataObject[]) || []).map((a: IDataObject) => ({ type: a.type, id: a.id }));
 							delete updateFields.attendees;
 						}
 						// Nest customer
@@ -1445,19 +1504,28 @@ export class TeamleaderFocus implements INodeType {
 							delete updateFields.customer_id;
 						}
 						assignDefined(body, updateFields);
+						addCustomFieldsToBody.call(this, body, i, true);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/meetings.update', body);
 					} else if (operation === 'complete') {
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/meetings.complete', { id: this.getNodeParameter('id', i) as string });
 					} else if (operation === 'delete') {
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/meetings.delete', { id: this.getNodeParameter('id', i) as string });
 					} else if (operation === 'createReport') {
-						responseData = await teamleaderApiRequest.call(this, 'POST', '/meetings.createReport', {
+						const body: IDataObject = {
 							id: this.getNodeParameter('id', i) as string,
 							attach_to: {
 								type: this.getNodeParameter('attachToType', i) as string,
 								id: this.getNodeParameter('attachToId', i) as string,
 							},
-						});
+						};
+						try {
+							const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+							assignDefined(body, additionalFields);
+						} catch {
+							// No additional fields
+						}
+						addCustomFieldsToBody.call(this, body, i);
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/meetings.createReport', body);
 					}
 				}
 
@@ -1481,6 +1549,7 @@ export class TeamleaderFocus implements INodeType {
 						};
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
 						assignDefined(body, additionalFields);
+						addCustomFieldsToBody.call(this, body, i);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/calls.add', body);
 					} else if (operation === 'get') {
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/calls.info', { id: this.getNodeParameter('id', i) as string });
@@ -1488,10 +1557,10 @@ export class TeamleaderFocus implements INodeType {
 						responseData = await handleGetMany.call(this, i, '/calls.list');
 					} else if (operation === 'complete') {
 						const body: IDataObject = { id: this.getNodeParameter('id', i) as string };
-						const outcomeId = this.getNodeParameter('outcome_id', i, '') as string;
-						if (outcomeId) body.outcome_id = outcomeId;
-						const summary = this.getNodeParameter('summary', i, '') as string;
-						if (summary) body.summary = summary;
+						const outcomeId = this.getNodeParameter('call_outcome_id', i, '') as string;
+						if (outcomeId) body.call_outcome_id = outcomeId;
+						const summary = this.getNodeParameter('outcome_summary', i, '') as string;
+						if (summary) body.outcome_summary = summary;
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/calls.complete', body);
 					} else if (operation === 'update') {
 						const body: IDataObject = { id: this.getNodeParameter('id', i) as string };
@@ -1508,6 +1577,7 @@ export class TeamleaderFocus implements INodeType {
 							delete updateFields.assignee_user_id;
 						}
 						assignDefined(body, updateFields);
+						addCustomFieldsToBody.call(this, body, i, true);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/calls.update', body);
 					}
 				}
@@ -1517,15 +1587,24 @@ export class TeamleaderFocus implements INodeType {
 				// ==============================
 				else if (resource === 'timeTracking') {
 					if (operation === 'add') {
+						const timeInputMode = this.getNodeParameter('timeInputMode', i) as string;
 						const body: IDataObject = {
 							work_type_id: this.getNodeParameter('work_type_id', i) as string,
-							started_at: this.getNodeParameter('started_at', i) as string,
-							duration: this.getNodeParameter('duration', i) as number,
 							subject: {
 								type: this.getNodeParameter('subjectType', i) as string,
 								id: this.getNodeParameter('subjectId', i) as string,
 							},
 						};
+						if (timeInputMode === 'startedAtDuration') {
+							body.started_at = this.getNodeParameter('started_at', i) as string;
+							body.duration = this.getNodeParameter('duration', i) as number;
+						} else if (timeInputMode === 'startedAtEndedAt') {
+							body.started_at = this.getNodeParameter('started_at', i) as string;
+							body.ended_at = this.getNodeParameter('ended_at', i) as string;
+						} else if (timeInputMode === 'startedOnDuration') {
+							body.started_on = this.getNodeParameter('started_on', i) as string;
+							body.duration = this.getNodeParameter('duration', i) as number;
+						}
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
 						assignDefined(body, additionalFields);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/timeTracking.add', body);
@@ -1534,7 +1613,16 @@ export class TeamleaderFocus implements INodeType {
 					} else if (operation === 'getMany') {
 						responseData = await handleGetMany.call(this, i, '/timeTracking.list');
 					} else if (operation === 'update') {
-						const body: IDataObject = { id: this.getNodeParameter('id', i) as string };
+						const timeInputMode = this.getNodeParameter('timeInputMode', i) as string;
+						const body: IDataObject = {
+							id: this.getNodeParameter('id', i) as string,
+							duration: this.getNodeParameter('duration', i) as number,
+						};
+						if (timeInputMode === 'startedAt') {
+							body.started_at = this.getNodeParameter('started_at', i) as string;
+						} else if (timeInputMode === 'startedOn') {
+							body.started_on = this.getNodeParameter('started_on', i) as string;
+						}
 						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
 						// Nest subject
 						if (updateFields.subject_type && updateFields.subject_id) {
@@ -1652,6 +1740,12 @@ export class TeamleaderFocus implements INodeType {
 					} else if (operation === 'update') {
 						const body: IDataObject = { id: this.getNodeParameter('id', i) as string };
 						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
+						// Nest customer
+						if (updateFields.customer_type && updateFields.customer_id) {
+							body.customer = { type: updateFields.customer_type, id: updateFields.customer_id };
+							delete updateFields.customer_type;
+							delete updateFields.customer_id;
+						}
 						// Nest assignee
 						if (updateFields.assignee_id) {
 							body.assignee = { type: 'user', id: updateFields.assignee_id };
@@ -1694,6 +1788,21 @@ export class TeamleaderFocus implements INodeType {
 							billing_method: this.getNodeParameter('billingMethod', i) as string,
 						};
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						// Nest time_budget
+						if (additionalFields.time_budget_value !== undefined) {
+							body.time_budget = {
+								value: additionalFields.time_budget_value,
+								unit: additionalFields.time_budget_unit || 'hours',
+							};
+							delete additionalFields.time_budget_value;
+							delete additionalFields.time_budget_unit;
+						}
+						// owner_ids comes as array from multiOptions
+						if (additionalFields.owner_ids) {
+							body.owner_ids = additionalFields.owner_ids;
+							delete additionalFields.owner_ids;
+						}
+						nestMoneyFields(additionalFields, body);
 						assignDefined(body, additionalFields);
 						addCustomFieldsToBody.call(this, body, i);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/projects-v2/projects.create', body);
@@ -1705,10 +1814,24 @@ export class TeamleaderFocus implements INodeType {
 						const body: IDataObject = { id: this.getNodeParameter('id', i) as string };
 						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
 						// Nest billing_method if provided
-						if (updateFields.billing_method) {
-							body.billing_method = { value: updateFields.billing_method, update_strategy: 'keep_existing' };
-							delete updateFields.billing_method;
+						if (updateFields.billing_method_value) {
+							body.billing_method = {
+								value: updateFields.billing_method_value,
+								update_strategy: updateFields.billing_method_update_strategy || 'none',
+							};
+							delete updateFields.billing_method_value;
+							delete updateFields.billing_method_update_strategy;
 						}
+						// Nest time_budget
+						if (updateFields.time_budget_value !== undefined) {
+							body.time_budget = {
+								value: updateFields.time_budget_value,
+								unit: updateFields.time_budget_unit || 'hours',
+							};
+							delete updateFields.time_budget_value;
+							delete updateFields.time_budget_unit;
+						}
+						nestMoneyFields(updateFields, body);
 						assignDefined(body, updateFields);
 						addCustomFieldsToBody.call(this, body, i, true);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/projects-v2/projects.update', body);
@@ -1862,8 +1985,9 @@ export class TeamleaderFocus implements INodeType {
 						const body: IDataObject = {
 							project_id: this.getNodeParameter('projectId', i) as string,
 							title: this.getNodeParameter('title', i) as string,
-							group_id: this.getNodeParameter('groupId', i) as string,
 						};
+						const groupId = this.getNodeParameter('groupId', i, '') as string;
+						if (groupId) body.group_id = groupId;
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
 						// Nest time_estimated
 						if (additionalFields.time_estimated_value !== undefined) {
@@ -1873,6 +1997,19 @@ export class TeamleaderFocus implements INodeType {
 							};
 							delete additionalFields.time_estimated_value;
 							delete additionalFields.time_estimated_unit;
+						}
+						// Extract assignees from fixedCollection
+						if (additionalFields.assignees) {
+							const assigneesData = additionalFields.assignees as IDataObject;
+							body.assignees = ((assigneesData?.assignee as IDataObject[]) || []).map((a: IDataObject) => ({ type: a.type, id: a.id }));
+							delete additionalFields.assignees;
+						}
+						nestMoneyFields(additionalFields, body);
+						// Nest custom_rate
+						if (additionalFields.custom_rate_amount !== undefined) {
+							body.custom_rate = { amount: additionalFields.custom_rate_amount, currency: additionalFields.custom_rate_currency || 'EUR' };
+							delete additionalFields.custom_rate_amount;
+							delete additionalFields.custom_rate_currency;
 						}
 						assignDefined(body, additionalFields);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/projects-v2/tasks.create', body);
@@ -1885,6 +2022,22 @@ export class TeamleaderFocus implements INodeType {
 					} else if (operation === 'update') {
 						const body: IDataObject = { id: this.getNodeParameter('id', i) as string };
 						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
+						// Nest time_estimated
+						if (updateFields.time_estimated_value !== undefined) {
+							body.time_estimated = {
+								value: updateFields.time_estimated_value,
+								unit: updateFields.time_estimated_unit || 'hours',
+							};
+							delete updateFields.time_estimated_value;
+							delete updateFields.time_estimated_unit;
+						}
+						nestMoneyFields(updateFields, body);
+						// Nest custom_rate
+						if (updateFields.custom_rate_amount !== undefined) {
+							body.custom_rate = { amount: updateFields.custom_rate_amount, currency: updateFields.custom_rate_currency || 'EUR' };
+							delete updateFields.custom_rate_amount;
+							delete updateFields.custom_rate_currency;
+						}
 						assignDefined(body, updateFields);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/projects-v2/tasks.update', body);
 					} else if (operation === 'delete') {
@@ -1932,6 +2085,21 @@ export class TeamleaderFocus implements INodeType {
 							delete additionalFields.unit_price_amount;
 							delete additionalFields.unit_price_currency;
 						}
+						// Nest unit_cost
+						if (additionalFields.unit_cost_amount !== undefined) {
+							const unitCost: IDataObject = { amount: additionalFields.unit_cost_amount };
+							if (additionalFields.unit_cost_currency) unitCost.currency = additionalFields.unit_cost_currency;
+							body.unit_cost = unitCost;
+							delete additionalFields.unit_cost_amount;
+							delete additionalFields.unit_cost_currency;
+						}
+						// Extract assignees from fixedCollection
+						if (additionalFields.assignees) {
+							const assigneesData = additionalFields.assignees as IDataObject;
+							body.assignees = ((assigneesData?.assignee as IDataObject[]) || []).map((a: IDataObject) => ({ type: a.type, id: a.id }));
+							delete additionalFields.assignees;
+						}
+						nestMoneyFields(additionalFields, body);
 						assignDefined(body, additionalFields);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/projects-v2/materials.create', body);
 					} else if (operation === 'get') {
@@ -1943,6 +2111,15 @@ export class TeamleaderFocus implements INodeType {
 					} else if (operation === 'update') {
 						const body: IDataObject = { id: this.getNodeParameter('id', i) as string };
 						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
+						// Nest unit_price
+						if (updateFields.unit_price_amount !== undefined) {
+							const unitPrice: IDataObject = { amount: updateFields.unit_price_amount };
+							if (updateFields.unit_price_currency) unitPrice.currency = updateFields.unit_price_currency;
+							body.unit_price = unitPrice;
+							delete updateFields.unit_price_amount;
+							delete updateFields.unit_price_currency;
+						}
+						nestMoneyFields(updateFields, body);
 						assignDefined(body, updateFields);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/projects-v2/materials.update', body);
 					} else if (operation === 'delete') {
@@ -1983,6 +2160,15 @@ export class TeamleaderFocus implements INodeType {
 							delete additionalFields.selling_price_amount;
 							delete additionalFields.selling_price_currency;
 						}
+						// Nest purchase_price
+						if (additionalFields.purchase_price_amount !== undefined) {
+							const pp: IDataObject = { amount: additionalFields.purchase_price_amount };
+							if (additionalFields.purchase_price_currency) pp.currency = additionalFields.purchase_price_currency;
+							body.purchase_price = pp;
+							delete additionalFields.purchase_price_amount;
+							delete additionalFields.purchase_price_currency;
+						}
+						addCustomFieldsToBody.call(this, body, i);
 						assignDefined(body, additionalFields);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/products.add', body);
 					} else if (operation === 'get') {
@@ -2000,6 +2186,15 @@ export class TeamleaderFocus implements INodeType {
 							delete updateFields.selling_price_amount;
 							delete updateFields.selling_price_currency;
 						}
+						// Nest purchase_price
+						if (updateFields.purchase_price_amount !== undefined) {
+							const pp: IDataObject = { amount: updateFields.purchase_price_amount };
+							if (updateFields.purchase_price_currency) pp.currency = updateFields.purchase_price_currency;
+							body.purchase_price = pp;
+							delete updateFields.purchase_price_amount;
+							delete updateFields.purchase_price_currency;
+						}
+						addCustomFieldsToBody.call(this, body, i, true);
 						assignDefined(body, updateFields);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/products.update', body);
 					} else if (operation === 'delete') {
@@ -2200,7 +2395,8 @@ export class TeamleaderFocus implements INodeType {
 				// ==============================
 				else if (resource === 'dayOff') {
 					if (operation === 'import') {
-						const days = JSON.parse(this.getNodeParameter('days', i) as string);
+						const daysData = this.getNodeParameter('days', i) as IDataObject;
+						const days = ((daysData?.day as IDataObject[]) || []).map((d: IDataObject) => ({ starts_at: d.starts_at, ends_at: d.ends_at }));
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/daysOff.import', {
 							user_id: this.getNodeParameter('userId', i) as string,
 							leave_type_id: this.getNodeParameter('leaveTypeId', i) as string,
@@ -2215,10 +2411,29 @@ export class TeamleaderFocus implements INodeType {
 					} else if (operation === 'listTypes') {
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/dayOffTypes.list');
 					} else if (operation === 'createType') {
-						responseData = await teamleaderApiRequest.call(this, 'POST', '/dayOffTypes.create', { name: this.getNodeParameter('name', i) as string });
+						const body: IDataObject = { name: this.getNodeParameter('name', i) as string };
+						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						// Nest date_validity
+						if (additionalFields.date_validity_from || additionalFields.date_validity_until) {
+							body.date_validity = {} as IDataObject;
+							if (additionalFields.date_validity_from) (body.date_validity as IDataObject).from = additionalFields.date_validity_from;
+							if (additionalFields.date_validity_until) (body.date_validity as IDataObject).until = additionalFields.date_validity_until;
+							delete additionalFields.date_validity_from;
+							delete additionalFields.date_validity_until;
+						}
+						assignDefined(body, additionalFields);
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/dayOffTypes.create', body);
 					} else if (operation === 'updateType') {
 						const body: IDataObject = { id: this.getNodeParameter('id', i) as string };
 						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
+						// Nest date_validity
+						if (updateFields.date_validity_from || updateFields.date_validity_until) {
+							body.date_validity = {} as IDataObject;
+							if (updateFields.date_validity_from) (body.date_validity as IDataObject).from = updateFields.date_validity_from;
+							if (updateFields.date_validity_until) (body.date_validity as IDataObject).until = updateFields.date_validity_until;
+							delete updateFields.date_validity_from;
+							delete updateFields.date_validity_until;
+						}
 						assignDefined(body, updateFields);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/dayOffTypes.update', body);
 					} else if (operation === 'deleteType') {
@@ -2366,6 +2581,11 @@ export class TeamleaderFocus implements INodeType {
 						if (updateFields.total_tax_inclusive_amount !== undefined) {
 							body.total = { tax_inclusive: { amount: updateFields.total_tax_inclusive_amount } };
 							delete updateFields.total_tax_inclusive_amount;
+						}
+						// Nest currency
+						if (updateFields.currency_code) {
+							body.currency = { code: updateFields.currency_code };
+							delete updateFields.currency_code;
 						}
 						assignDefined(body, updateFields);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/receipts.update', body);
@@ -2779,12 +2999,12 @@ async function handleResourceOperation(
 function buildQuotationBody(context: IExecuteFunctions, itemIndex: number): IDataObject {
 	const body: IDataObject = {
 		deal_id: context.getNodeParameter('dealId', itemIndex) as string,
-		customer: {
-			type: context.getNodeParameter('customerType', itemIndex) as string,
-			id: context.getNodeParameter('customerId', itemIndex) as string,
-		},
-		grouped_lines: JSON.parse(context.getNodeParameter('groupedLines', itemIndex) as string),
 	};
+	// grouped_lines is optional (spec allows text-only quotations)
+	const groupedLinesRaw = context.getNodeParameter('groupedLines', itemIndex, '') as string;
+	if (groupedLinesRaw) {
+		body.grouped_lines = typeof groupedLinesRaw === 'string' ? JSON.parse(groupedLinesRaw) : groupedLinesRaw;
+	}
 	try {
 		const additionalFields = context.getNodeParameter('additionalFields', itemIndex) as IDataObject;
 		// Nest currency as {code, exchange_rate}
@@ -2796,9 +3016,73 @@ function buildQuotationBody(context: IExecuteFunctions, itemIndex: number): IDat
 		}
 		delete additionalFields.currency_code;
 		delete additionalFields.currency_exchange_rate;
+		// Extract discounts from fixedCollection
+		if (additionalFields.discounts) {
+			const discountsData = additionalFields.discounts as IDataObject;
+			body.discounts = ((discountsData?.discount as IDataObject[]) || []).map((d: IDataObject) => ({
+				type: 'percentage',
+				value: d.value,
+				description: d.description || '',
+			}));
+			delete additionalFields.discounts;
+		}
+		// Build expiry from structured fields
+		if (additionalFields.expiry_date) {
+			body.expiry = {
+				date: additionalFields.expiry_date,
+				action_after_expiry: additionalFields.expiry_action || 'none',
+			} as IDataObject;
+		}
+		delete additionalFields.expiry_date;
+		delete additionalFields.expiry_action;
 		assignDefined(body, additionalFields);
 	} catch {
 		// No additional fields
+	}
+	return body;
+}
+
+function buildQuotationUpdateBody(context: IExecuteFunctions, itemIndex: number): IDataObject {
+	const body: IDataObject = { id: context.getNodeParameter('id', itemIndex) as string };
+	try {
+		const updateFields = context.getNodeParameter('updateFields', itemIndex) as IDataObject;
+		// Nest currency as {code, exchange_rate}
+		if (updateFields.currency_code) {
+			body.currency = {
+				code: updateFields.currency_code,
+				exchange_rate: updateFields.currency_exchange_rate || 1,
+			};
+		}
+		delete updateFields.currency_code;
+		delete updateFields.currency_exchange_rate;
+		// Extract discounts from fixedCollection
+		if (updateFields.discounts) {
+			const discountsData = updateFields.discounts as IDataObject;
+			body.discounts = ((discountsData?.discount as IDataObject[]) || []).map((d: IDataObject) => ({
+				type: 'percentage',
+				value: d.value,
+				description: d.description || '',
+			}));
+			delete updateFields.discounts;
+		}
+		// Build expiry from structured fields
+		if (updateFields.expiry_date) {
+			body.expiry = {
+				date: updateFields.expiry_date,
+				action_after_expiry: updateFields.expiry_action || 'none',
+			} as IDataObject;
+		}
+		delete updateFields.expiry_date;
+		delete updateFields.expiry_action;
+		// Parse grouped_lines JSON
+		if (updateFields.grouped_lines) {
+			body.grouped_lines = typeof updateFields.grouped_lines === 'string'
+				? JSON.parse(updateFields.grouped_lines as string) : updateFields.grouped_lines;
+			delete updateFields.grouped_lines;
+		}
+		assignDefined(body, updateFields);
+	} catch {
+		// No update fields
 	}
 	return body;
 }
@@ -2834,10 +3118,31 @@ function buildInvoiceBody(context: IExecuteFunctions, itemIndex: number): IDataO
 		}
 		delete additionalFields.for_attention_of_name;
 		delete additionalFields.for_attention_of_contact_id;
+		// Extract discounts from fixedCollection
+		if (additionalFields.discounts) {
+			const discountsData = additionalFields.discounts as IDataObject;
+			body.discounts = ((discountsData?.discount as IDataObject[]) || []).map((d: IDataObject) => ({
+				type: 'percentage',
+				value: d.value,
+				description: d.description || '',
+			}));
+			delete additionalFields.discounts;
+		}
+		// Build expected_payment_method from structured fields
+		if (additionalFields.expected_payment_method_method) {
+			const epm: IDataObject = { method: additionalFields.expected_payment_method_method };
+			if (additionalFields.expected_payment_method_reference) {
+				epm.reference = additionalFields.expected_payment_method_reference;
+			}
+			body.expected_payment_method = epm;
+		}
+		delete additionalFields.expected_payment_method_method;
+		delete additionalFields.expected_payment_method_reference;
 		assignDefined(body, additionalFields);
 	} catch {
 		// No additional fields
 	}
+	addCustomFieldsToBody.call(context, body, itemIndex);
 	return body;
 }
 
@@ -2936,13 +3241,53 @@ function buildInvoiceSendBody(context: IExecuteFunctions, itemIndex: number): ID
 
 function buildQuotationSendBody(context: IExecuteFunctions, itemIndex: number): IDataObject {
 	const recipientsTo = JSON.parse(context.getNodeParameter('recipientsTo', itemIndex) as string);
-	return {
+	const body: IDataObject = {
 		quotations: [context.getNodeParameter('id', itemIndex) as string],
-		recipients: { to: recipientsTo },
+		recipients: { to: recipientsTo } as IDataObject,
 		subject: context.getNodeParameter('emailSubject', itemIndex) as string,
 		content: context.getNodeParameter('emailContent', itemIndex) as string,
 		language: context.getNodeParameter('language', itemIndex, 'en') as string,
 	};
+	try {
+		const extra = context.getNodeParameter('sendAdditionalFields', itemIndex, {}) as IDataObject;
+		// Build from object from structured fields
+		if (extra.from_sender_id) {
+			body.from = {
+				sender: { type: extra.from_sender_type || 'user', id: extra.from_sender_id },
+			} as IDataObject;
+			if (extra.from_email_address) {
+				(body.from as IDataObject).email_address = extra.from_email_address;
+			}
+		}
+		// Extract cc from fixedCollection
+		if (extra.cc) {
+			const ccData = extra.cc as IDataObject;
+			(body.recipients as IDataObject).cc = ((ccData?.recipient as IDataObject[]) || []).map((r: IDataObject) => {
+				const entry: IDataObject = { email_address: r.email_address };
+				if (r.customer_type && r.customer_id) {
+					entry.customer = { type: r.customer_type, id: r.customer_id };
+				}
+				return entry;
+			});
+		}
+		// Extract bcc from fixedCollection
+		if (extra.bcc) {
+			const bccData = extra.bcc as IDataObject;
+			(body.recipients as IDataObject).bcc = ((bccData?.recipient as IDataObject[]) || []).map((r: IDataObject) => {
+				const entry: IDataObject = { email_address: r.email_address };
+				if (r.customer_type && r.customer_id) {
+					entry.customer = { type: r.customer_type, id: r.customer_id };
+				}
+				return entry;
+			});
+		}
+		if (extra.attachments) {
+			body.attachments = typeof extra.attachments === 'string' ? JSON.parse(extra.attachments as string) : extra.attachments;
+		}
+	} catch {
+		// No additional send fields
+	}
+	return body;
 }
 
 function buildInvoiceUpdateBody(context: IExecuteFunctions, itemIndex: number): IDataObject {
@@ -2957,22 +3302,53 @@ function buildInvoiceUpdateBody(context: IExecuteFunctions, itemIndex: number): 
 			delete updateFields.payment_term_type;
 			delete updateFields.payment_term_days;
 		}
+		// Nest invoicee if customer fields provided
+		if (updateFields.customer_type && updateFields.customer_id) {
+			const invoicee: IDataObject = {
+				customer: { type: updateFields.customer_type, id: updateFields.customer_id },
+			};
+			if (updateFields.for_attention_of_name) {
+				invoicee.for_attention_of = { name: updateFields.for_attention_of_name };
+			} else if (updateFields.for_attention_of_contact_id) {
+				invoicee.for_attention_of = { contact_id: updateFields.for_attention_of_contact_id };
+			}
+			body.invoicee = invoicee;
+			delete updateFields.customer_type;
+			delete updateFields.customer_id;
+			delete updateFields.for_attention_of_name;
+			delete updateFields.for_attention_of_contact_id;
+		}
 		// Parse grouped_lines JSON
 		if (updateFields.grouped_lines) {
 			body.grouped_lines = typeof updateFields.grouped_lines === 'string'
 				? JSON.parse(updateFields.grouped_lines as string) : updateFields.grouped_lines;
 			delete updateFields.grouped_lines;
 		}
-		// Parse discount JSON
-		if (updateFields.discount) {
-			const d = typeof updateFields.discount === 'string' ? JSON.parse(updateFields.discount as string) : updateFields.discount;
-			body.discounts = [d];
-			delete updateFields.discount;
+		// Extract discounts from fixedCollection
+		if (updateFields.discounts) {
+			const discountsData = updateFields.discounts as IDataObject;
+			body.discounts = ((discountsData?.discount as IDataObject[]) || []).map((d: IDataObject) => ({
+				type: 'percentage',
+				value: d.value,
+				description: d.description || '',
+			}));
+			delete updateFields.discounts;
 		}
+		// Build expected_payment_method from structured fields
+		if (updateFields.expected_payment_method_method) {
+			const epm: IDataObject = { method: updateFields.expected_payment_method_method };
+			if (updateFields.expected_payment_method_reference) {
+				epm.reference = updateFields.expected_payment_method_reference;
+			}
+			body.expected_payment_method = epm;
+		}
+		delete updateFields.expected_payment_method_method;
+		delete updateFields.expected_payment_method_reference;
 		assignDefined(body, updateFields);
 	} catch {
 		// No update fields
 	}
+	addCustomFieldsToBody.call(context, body, itemIndex, true);
 	return body;
 }
 
@@ -2995,6 +3371,13 @@ function buildInvoiceUpdateBookedBody(context: IExecuteFunctions, itemIndex: num
 	return body;
 }
 
+
+function buildInvoiceCreditBody(context: IExecuteFunctions, itemIndex: number): IDataObject {
+	const body: IDataObject = { id: context.getNodeParameter('id', itemIndex) as string };
+	const creditNoteDate = context.getNodeParameter('credit_note_date', itemIndex, '') as string;
+	if (creditNoteDate) body.credit_note_date = creditNoteDate;
+	return body;
+}
 
 function buildInvoiceCreditPartiallyBody(context: IExecuteFunctions, itemIndex: number): IDataObject {
 	return {

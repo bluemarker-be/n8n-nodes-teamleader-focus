@@ -30,7 +30,7 @@ export const dealPipelineFields: INodeProperties[] = [
 		type: 'string',
 		required: true,
 		default: '',
-		displayOptions: { show: { resource: ['dealPipeline'], operation: ['create'] } },
+		displayOptions: { show: { resource: ['dealPipeline'], operation: ['create', 'update'] } },
 	},
 	{
 		displayName: 'Pipeline ID',
@@ -51,7 +51,7 @@ export const dealPipelineFields: INodeProperties[] = [
 		type: 'json',
 		default: '[]',
 		displayOptions: { show: { resource: ['dealPipeline'], operation: ['delete'] } },
-		description: 'JSON array mapping old phases to new ones, e.g. [{"from_phase_id":"...","to_phase_id":"..."}]. Required when the pipeline has deals.',
+		description: 'JSON array mapping old phase IDs to new pipeline phase IDs. Required when the pipeline has deals. Example: [{"from_phase_id":"abc-123","to_phase_id":"def-456"}]',
 	},
 	{
 		displayName: 'Return All',
@@ -70,21 +70,5 @@ export const dealPipelineFields: INodeProperties[] = [
 		displayOptions: {
 			show: { resource: ['dealPipeline'], operation: ['getMany'], returnAll: [false] },
 		},
-	},
-	{
-		displayName: 'Update Fields',
-		name: 'updateFields',
-		type: 'collection',
-		placeholder: 'Add Field',
-		default: {},
-		displayOptions: { show: { resource: ['dealPipeline'], operation: ['update'] } },
-		options: [
-			{
-				displayName: 'Name',
-				name: 'name',
-				type: 'string',
-				default: '',
-			},
-		],
 	},
 ];

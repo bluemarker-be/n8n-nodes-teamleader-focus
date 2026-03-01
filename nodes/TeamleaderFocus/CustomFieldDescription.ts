@@ -81,7 +81,7 @@ export const customFieldFields: INodeProperties[] = [
 		type: 'json',
 		default: '{}',
 		displayOptions: { show: { resource: ['customField'], operation: ['create'] } },
-		description: 'Optional configuration in JSON format (e.g. options for select fields)',
+		description: 'Optional configuration in JSON format. Varies per field type. For "select" type: {"options":[{"value":"option1"},{"value":"option2"}]}. For "number" type: {"minimum":0,"maximum":100}.',
 	},
 
 	// ----------------------------------

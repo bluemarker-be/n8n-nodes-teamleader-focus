@@ -165,7 +165,7 @@ const ENDPOINT_CHECKS = [
 
 	// ═══════════════ DEAL PIPELINE ═══════════════
 	{ endpoint: '/dealPipelines.create', requiredBySpec: ['name'], actualSends: ['name'] },
-	{ endpoint: '/dealPipelines.update', requiredBySpec: ['id', 'name'], actualSends: ['id'], note: 'name is required by spec but this is an update endpoint — API likely accepts partial updates' },
+	{ endpoint: '/dealPipelines.update', requiredBySpec: ['id', 'name'], actualSends: ['id', 'name'] },
 	{
 		endpoint: '/dealPipelines.delete',
 		requiredBySpec: ['id'],
@@ -196,9 +196,8 @@ const ENDPOINT_CHECKS = [
 	},
 	{
 		endpoint: '/dealPhases.update',
-		requiredBySpec: ['id', 'requires_attention_after'],
-		actualSends: ['id'],
-		note: 'requires_attention_after is required by spec but conditionally sent (only if user provides it). This may cause 400 if user only updates name without requires_attention_after.',
+		requiredBySpec: ['id', 'name', 'requires_attention_after'],
+		actualSends: ['id', 'name', 'requires_attention_after'],
 	},
 	{ endpoint: '/dealPhases.delete', requiredBySpec: ['id'], actualSends: ['id'] },
 	{
@@ -441,18 +440,26 @@ const ENDPOINT_CHECKS = [
 	// ═══════════════ TIME TRACKING ═══════════════
 	{
 		endpoint: '/timeTracking.add',
-		requiredBySpec: ['work_type_id', 'started_at', 'duration', 'subject'],
-		actualSends: ['work_type_id', 'started_at', 'duration', 'subject'],
+		requiredBySpec: ['work_type_id', 'subject'],
+		actualSends: ['work_type_id', 'subject'],
+		oneOfFields: ['started_at', 'duration', 'ended_at', 'started_on'],
 		structuralChecks: [
 			{ desc: 'subject {type, id}', pattern: /subject.*type.*id/s, present: true },
+			{ desc: 'timeInputMode selector for add', pattern: /timeInputMode.*startedAtDuration/, present: true },
+			{ desc: 'started_at+ended_at variant', pattern: /started_at.*ended_at|ended_at.*started_at/s, present: true },
+			{ desc: 'started_on+duration variant', pattern: /started_on.*duration|duration.*started_on/s, present: true },
 		],
 	},
 	{ endpoint: '/timeTracking.info', requiredBySpec: ['id'], actualSends: ['id'] },
 	{
 		endpoint: '/timeTracking.update',
 		requiredBySpec: ['id', 'duration'],
-		actualSends: ['id'],
-		note: 'duration and started_at are required by spec but this is an update endpoint — API likely accepts partial updates',
+		actualSends: ['id', 'duration'],
+		oneOfFields: ['started_at', 'started_on'],
+		structuralChecks: [
+			{ desc: 'timeInputMode selector for update', pattern: /timeInputMode.*startedAt/, present: true },
+			{ desc: 'started_on variant', pattern: /started_on.*getNodeParameter/, present: true },
+		],
 	},
 	{ endpoint: '/timeTracking.delete', requiredBySpec: ['id'], actualSends: ['id'] },
 	{ endpoint: '/timeTracking.resume', requiredBySpec: ['id'], actualSends: ['id'] },
@@ -787,8 +794,10 @@ for (const check of ENDPOINT_CHECKS) {
 	for (const field of specRequired) {
 		if (field === 'page' || field === 'sort') continue;
 		if (!check.actualSends.includes(field)) {
-			// Check if we listed it as required but not sending
-			if (check.note && check.note.includes(field)) {
+			// Skip oneOf fields — they are conditionally sent based on a mode selector
+			if (check.oneOfFields && check.oneOfFields.includes(field)) {
+				passed++;
+			} else if (check.note && check.note.includes(field)) {
 				console.log(`⚠  WARN  ${check.endpoint}: "${field}" required by spec but conditionally sent — ${check.note}`);
 				warnings++;
 			} else {
@@ -875,21 +884,13 @@ if (sendRegion.includes("from: context.getNodeParameter('fromEmail'")) {
 	warnings++;
 }
 
-// Check 4d: dealPhases.update requires_attention_after is required but conditionally sent
-if (nodeSrc.match(/dealPhases\.update.*requires_attention_after_amount.*!==.*undefined/s)) {
-	console.log('⚠  WARN  dealPhases.update: requires_attention_after is required by spec but only sent if user provides amount field');
-	warnings++;
+// Check 4d: dealPhases.update requires_attention_after is now always sent
+if (nodeSrc.match(/dealPhases\.update.*requires_attention_after/s)) {
+	// requires_attention_after is now a required top-level field — no warning needed
 }
 
-// Check 4e: timeTracking.update — duration is required but only sent via updateFields
-const ttUpdateRegion = nodeSrc.substring(
-	nodeSrc.indexOf("'/timeTracking.update'") - 500,
-	nodeSrc.indexOf("'/timeTracking.update'") + 100,
-);
-if (ttUpdateRegion.includes('assignDefined(body, updateFields)') && !ttUpdateRegion.includes("body.duration")) {
-	console.log('⚠  WARN  timeTracking.update: "duration" is required by spec but only sent if user provides it in updateFields');
-	warnings++;
-}
+// Check 4e: timeTracking — oneOf variants handled via timeInputMode selector
+// duration is always required; started_at or started_on depends on mode
 
 // Check 4f: Verify old field names are NOT present (regression check)
 const oldFieldChecks = [
@@ -924,7 +925,7 @@ for (const check of ENDPOINT_CHECKS) {
 	if (!schema) continue;
 
 	const specRequired = getRequiredFields(schema);
-	const missing = specRequired.filter(f => f !== 'page' && f !== 'sort' && !check.actualSends.includes(f));
+	const missing = specRequired.filter(f => f !== 'page' && f !== 'sort' && !check.actualSends.includes(f) && !(check.oneOfFields && check.oneOfFields.includes(f)));
 
 	if (missing.length === 0) {
 		autoCheckPassed++;

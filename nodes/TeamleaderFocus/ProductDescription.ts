@@ -49,15 +49,31 @@ export const productFields: INodeProperties[] = [
 				default: '',
 			},
 			{
-				displayName: 'Unit Price Amount',
-				name: 'unit_price_amount',
+				displayName: 'Purchase Price Amount',
+				name: 'purchase_price_amount',
 				type: 'number',
 				typeOptions: { numberPrecision: 2 },
 				default: 0,
 			},
 			{
-				displayName: 'Currency',
-				name: 'currency',
+				displayName: 'Purchase Price Currency',
+				name: 'purchase_price_currency',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getCurrencies' },
+				default: '',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Selling Price Amount',
+				name: 'selling_price_amount',
+				type: 'number',
+				typeOptions: { numberPrecision: 2 },
+				default: 0,
+			},
+			{
+				displayName: 'Selling Price Currency',
+				name: 'selling_price_currency',
 				type: 'options',
 				typeOptions: { loadOptionsMethod: 'getCurrencies' },
 				default: '',
@@ -72,6 +88,65 @@ export const productFields: INodeProperties[] = [
 				default: '',
 				description:
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Unit of Measure Name or ID',
+				name: 'unit_of_measure_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getUnitsOfMeasure' },
+				default: '',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Department Name or ID',
+				name: 'department_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getDepartments' },
+				default: '',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Tax Rate Name or ID',
+				name: 'tax_rate_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getTaxRates' },
+				default: '',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+		],
+	},
+	{
+		displayName: 'Custom Fields',
+		name: 'customFields',
+		type: 'fixedCollection',
+		typeOptions: { multipleValues: true },
+		placeholder: 'Add Custom Field',
+		default: {},
+		displayOptions: { show: { resource: ['product'], operation: ['create'] } },
+		options: [
+			{
+				displayName: 'Field',
+				name: 'field',
+				values: [
+					{
+						displayName: 'Field Name or ID',
+						name: 'fieldId',
+						type: 'options',
+						typeOptions: { loadOptionsMethod: 'getProductCustomFields' },
+						default: '',
+						description:
+							'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+					},
+					{
+						displayName: 'Field Value',
+						name: 'fieldValue',
+						type: 'string',
+						default: '',
+					},
+				],
 			},
 		],
 	},
@@ -156,6 +231,22 @@ export const productFields: INodeProperties[] = [
 				default: '',
 			},
 			{
+				displayName: 'Purchase Price Amount',
+				name: 'purchase_price_amount',
+				type: 'number',
+				typeOptions: { numberPrecision: 2 },
+				default: 0,
+			},
+			{
+				displayName: 'Purchase Price Currency',
+				name: 'purchase_price_currency',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getCurrencies' },
+				default: '',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
 				displayName: 'Selling Price Amount',
 				name: 'selling_price_amount',
 				type: 'number',
@@ -170,6 +261,74 @@ export const productFields: INodeProperties[] = [
 				default: '',
 				description:
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Product Category Name or ID',
+				name: 'product_category_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getProductCategories' },
+				default: '',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Unit of Measure Name or ID',
+				name: 'unit_of_measure_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getUnitsOfMeasure' },
+				default: '',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Department Name or ID',
+				name: 'department_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getDepartments' },
+				default: '',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Tax Rate Name or ID',
+				name: 'tax_rate_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getTaxRates' },
+				default: '',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+		],
+	},
+	{
+		displayName: 'Custom Fields',
+		name: 'customFields',
+		type: 'fixedCollection',
+		typeOptions: { multipleValues: true },
+		placeholder: 'Add Custom Field',
+		default: {},
+		displayOptions: { show: { resource: ['product'], operation: ['update'] } },
+		options: [
+			{
+				displayName: 'Field',
+				name: 'field',
+				values: [
+					{
+						displayName: 'Field Name or ID',
+						name: 'fieldId',
+						type: 'options',
+						typeOptions: { loadOptionsMethod: 'getProductCustomFields' },
+						default: '',
+						description:
+							'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+					},
+					{
+						displayName: 'Field Value',
+						name: 'fieldValue',
+						type: 'string',
+						default: '',
+					},
+				],
 			},
 		],
 	},

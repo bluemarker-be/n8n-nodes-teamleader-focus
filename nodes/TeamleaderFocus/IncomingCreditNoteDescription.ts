@@ -44,17 +44,6 @@ export const incomingCreditNoteFields: INodeProperties[] = [
 		description: 'Title of the incoming credit note',
 	},
 	{
-		displayName: 'Department Name or ID',
-		name: 'departmentId',
-		type: 'options',
-		typeOptions: { loadOptionsMethod: 'getDepartments' },
-		required: true,
-		default: '',
-		displayOptions: { show: { resource: ['incomingCreditNote'], operation: ['add'] } },
-		description:
-			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
-	},
-	{
 		displayName: 'Currency Code',
 		name: 'currencyCode',
 		type: 'options',
@@ -74,32 +63,24 @@ export const incomingCreditNoteFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['incomingCreditNote'], operation: ['add'] } },
 		options: [
 			{
-				displayName: 'Supplier Type',
-				name: 'supplier_type',
-				type: 'options',
-				options: [
-					{ name: 'Contact', value: 'contact' },
-					{ name: 'Company', value: 'company' },
-				],
-				default: 'company',
-			},
-			{
 				displayName: 'Supplier ID',
 				name: 'supplier_id',
 				type: 'string',
 				default: '',
+				description: 'ID of the supplier (company)',
 			},
 			{
-				displayName: 'Credit Note Number',
-				name: 'credit_note_number',
+				displayName: 'Document Number',
+				name: 'document_number',
 				type: 'string',
 				default: '',
 			},
 			{
-				displayName: 'Credit Note Date',
-				name: 'credit_note_date',
+				displayName: 'Invoice Date',
+				name: 'invoice_date',
 				type: 'dateTime',
 				default: '',
+				description: 'Date of the credit note',
 			},
 			{
 				displayName: 'Total Tax Exclusive',
@@ -114,6 +95,30 @@ export const incomingCreditNoteFields: INodeProperties[] = [
 				type: 'number',
 				typeOptions: { numberPrecision: 2 },
 				default: 0,
+			},
+			{
+				displayName: 'Company Entity ID',
+				name: 'company_entity_id',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'File ID',
+				name: 'file_id',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'Payment Reference',
+				name: 'payment_reference',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'IBAN Number',
+				name: 'iban_number',
+				type: 'string',
+				default: '',
 			},
 		],
 	},
@@ -282,16 +287,23 @@ export const incomingCreditNoteFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['incomingCreditNote'], operation: ['update'] } },
 		options: [
 			{
-				displayName: 'Credit Note Number',
-				name: 'credit_note_number',
+				displayName: 'Title',
+				name: 'title',
 				type: 'string',
 				default: '',
 			},
 			{
-				displayName: 'Credit Note Date',
-				name: 'credit_note_date',
+				displayName: 'Document Number',
+				name: 'document_number',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'Invoice Date',
+				name: 'invoice_date',
 				type: 'dateTime',
 				default: '',
+				description: 'Date of the credit note',
 			},
 			{
 				displayName: 'Total Tax Exclusive',
@@ -315,6 +327,30 @@ export const incomingCreditNoteFields: INodeProperties[] = [
 				default: '',
 				description:
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Company Entity ID',
+				name: 'company_entity_id',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'File ID',
+				name: 'file_id',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'Payment Reference',
+				name: 'payment_reference',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'IBAN Number',
+				name: 'iban_number',
+				type: 'string',
+				default: '',
 			},
 		],
 	},

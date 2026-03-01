@@ -439,6 +439,15 @@ export const dealFields: INodeProperties[] = [
 				default: 1,
 				description: 'Exchange rate for the deal currency (default 1.0)',
 			},
+			{
+				displayName: 'Department Name or ID',
+				name: 'department_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getDepartments' },
+				default: '',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
 		],
 	},
 	{

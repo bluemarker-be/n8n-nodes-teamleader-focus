@@ -110,7 +110,7 @@ export const invoiceFields: INodeProperties[] = [
 		required: true,
 		default: '[]',
 		displayOptions: { show: { resource: ['invoice'], operation: ['draft'] } },
-		description: 'Array of line item groups in JSON format. Each group contains a line_items array.',
+		description: 'Array of line item groups in JSON format. Example: [{"section":{"title":"Section 1"},"line_items":[{"quantity":1,"description":"Item","unit_price":{"amount":100,"currency":"EUR"},"tax":{"rate":0.21}}]}]',
 	},
 	{
 		displayName: 'Additional Fields',
@@ -136,11 +136,35 @@ export const invoiceFields: INodeProperties[] = [
 				default: '',
 			},
 			{
-				displayName: 'Discount',
-				name: 'discount',
-				type: 'json',
-				default: '{}',
-				description: 'Discount object in JSON format, e.g. {"type":"percentage","value":10}',
+				displayName: 'Discounts',
+				name: 'discounts',
+				type: 'fixedCollection',
+				typeOptions: { multipleValues: true },
+				placeholder: 'Add Discount',
+				default: {},
+				options: [
+					{
+						displayName: 'Discount',
+						name: 'discount',
+						values: [
+							{
+								displayName: 'Value (%)',
+								name: 'value',
+								type: 'number',
+								typeOptions: { minValue: 0, maxValue: 100, numberPrecision: 2 },
+								default: 0,
+								description: 'Discount percentage (0-100)',
+							},
+							{
+								displayName: 'Description',
+								name: 'description',
+								type: 'string',
+								default: '',
+								description: 'Description of the discount',
+							},
+						],
+					},
+				],
 			},
 			{
 				displayName: 'Document Template Name or ID',
@@ -150,6 +174,25 @@ export const invoiceFields: INodeProperties[] = [
 				default: '',
 				description:
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Expected Payment Method',
+				name: 'expected_payment_method_method',
+				type: 'options',
+				options: [
+					{ name: 'SEPA Direct Debit', value: 'sepa_direct_debit' },
+					{ name: 'Direct Debit', value: 'direct_debit' },
+					{ name: 'Credit Card', value: 'credit_card' },
+				],
+				default: 'sepa_direct_debit',
+				description: 'The expected payment method',
+			},
+			{
+				displayName: 'Expected Payment Method Reference',
+				name: 'expected_payment_method_reference',
+				type: 'string',
+				default: '',
+				description: 'Reference for the expected payment method (e.g. mandate reference)',
 			},
 			{
 				displayName: 'Invoice Date',
@@ -190,6 +233,38 @@ export const invoiceFields: INodeProperties[] = [
 				type: 'string',
 				default: '',
 				description: 'Contact ID of the person to address the invoice to',
+			},
+		],
+	},
+	{
+		displayName: 'Custom Fields',
+		name: 'customFields',
+		type: 'fixedCollection',
+		typeOptions: { multipleValues: true },
+		placeholder: 'Add Custom Field',
+		default: {},
+		displayOptions: { show: { resource: ['invoice'], operation: ['draft'] } },
+		options: [
+			{
+				displayName: 'Field',
+				name: 'field',
+				values: [
+					{
+						displayName: 'Field Name or ID',
+						name: 'fieldId',
+						type: 'options',
+						typeOptions: { loadOptionsMethod: 'getInvoiceCustomFields' },
+						default: '',
+						description:
+							'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+					},
+					{
+						displayName: 'Field Value',
+						name: 'fieldValue',
+						type: 'string',
+						default: '',
+					},
+				],
 			},
 		],
 	},
@@ -257,7 +332,7 @@ export const invoiceFields: INodeProperties[] = [
 		required: true,
 		default: '[]',
 		displayOptions: { show: { resource: ['invoice'], operation: ['send'] } },
-		description: 'JSON array of recipient objects, e.g. [{"customer":{"type":"contact","id":"..."}}] or [{"email":"..."}]',
+		description: 'JSON array of recipient objects. Each can have a customer reference or an email address. Example: [{"customer":{"type":"contact","id":"abc-123"},"email_address":"name@example.com"}]',
 	},
 	{
 		displayName: 'Subject',
@@ -290,14 +365,14 @@ export const invoiceFields: INodeProperties[] = [
 				name: 'cc',
 				type: 'json',
 				default: '[]',
-				description: 'JSON array of CC recipients',
+				description: 'JSON array of CC recipients. Example: [{"email_address":"name@example.com","customer":{"type":"contact","id":"abc-123"}}]',
 			},
 			{
 				displayName: 'BCC',
 				name: 'bcc',
 				type: 'json',
 				default: '[]',
-				description: 'JSON array of BCC recipients',
+				description: 'JSON array of BCC recipients. Example: [{"email_address":"name@example.com"}]',
 			},
 		],
 	},
@@ -417,11 +492,35 @@ export const invoiceFields: INodeProperties[] = [
 				default: '',
 			},
 			{
-				displayName: 'Discount',
-				name: 'discount',
-				type: 'json',
-				default: '{}',
-				description: 'Discount object in JSON format, e.g. {"type":"percentage","value":10}',
+				displayName: 'Discounts',
+				name: 'discounts',
+				type: 'fixedCollection',
+				typeOptions: { multipleValues: true },
+				placeholder: 'Add Discount',
+				default: {},
+				options: [
+					{
+						displayName: 'Discount',
+						name: 'discount',
+						values: [
+							{
+								displayName: 'Value (%)',
+								name: 'value',
+								type: 'number',
+								typeOptions: { minValue: 0, maxValue: 100, numberPrecision: 2 },
+								default: 0,
+								description: 'Discount percentage (0-100)',
+							},
+							{
+								displayName: 'Description',
+								name: 'description',
+								type: 'string',
+								default: '',
+								description: 'Description of the discount',
+							},
+						],
+					},
+				],
 			},
 			{
 				displayName: 'Document Template Name or ID',
@@ -437,7 +536,7 @@ export const invoiceFields: INodeProperties[] = [
 				name: 'grouped_lines',
 				type: 'json',
 				default: '[]',
-				description: 'Array of line item groups in JSON format',
+				description: 'Array of line item groups in JSON format. Example: [{"section":{"title":"Section 1"},"line_items":[{"quantity":1,"description":"Item","unit_price":{"amount":100,"currency":"EUR"},"tax":{"rate":0.21}}]}]',
 			},
 			{
 				displayName: 'Invoice Date',
@@ -475,6 +574,96 @@ export const invoiceFields: INodeProperties[] = [
 				name: 'purchase_order_number',
 				type: 'string',
 				default: '',
+			},
+			{
+				displayName: 'Customer Type',
+				name: 'customer_type',
+				type: 'options',
+				options: [
+					{ name: 'Contact', value: 'contact' },
+					{ name: 'Company', value: 'company' },
+				],
+				default: 'contact',
+				description: 'Type of the invoicee customer',
+			},
+			{
+				displayName: 'Customer ID',
+				name: 'customer_id',
+				type: 'string',
+				default: '',
+				description: 'ID of the invoicee customer',
+			},
+			{
+				displayName: 'For Attention Of (Name)',
+				name: 'for_attention_of_name',
+				type: 'string',
+				default: '',
+				description: 'Name of the person to address the invoice to (free text)',
+			},
+			{
+				displayName: 'For Attention Of (Contact ID)',
+				name: 'for_attention_of_contact_id',
+				type: 'string',
+				default: '',
+				description: 'Contact ID of the person to address the invoice to',
+			},
+			{
+				displayName: 'Project ID',
+				name: 'project_id',
+				type: 'string',
+				default: '',
+				description: 'The ID of the related project',
+			},
+			{
+				displayName: 'Expected Payment Method',
+				name: 'expected_payment_method_method',
+				type: 'options',
+				options: [
+					{ name: 'SEPA Direct Debit', value: 'sepa_direct_debit' },
+					{ name: 'Direct Debit', value: 'direct_debit' },
+					{ name: 'Credit Card', value: 'credit_card' },
+				],
+				default: 'sepa_direct_debit',
+				description: 'The expected payment method',
+			},
+			{
+				displayName: 'Expected Payment Method Reference',
+				name: 'expected_payment_method_reference',
+				type: 'string',
+				default: '',
+				description: 'Reference for the expected payment method (e.g. mandate reference)',
+			},
+		],
+	},
+	{
+		displayName: 'Custom Fields',
+		name: 'customFields',
+		type: 'fixedCollection',
+		typeOptions: { multipleValues: true },
+		placeholder: 'Add Custom Field',
+		default: {},
+		displayOptions: { show: { resource: ['invoice'], operation: ['update'] } },
+		options: [
+			{
+				displayName: 'Field',
+				name: 'field',
+				values: [
+					{
+						displayName: 'Field Name or ID',
+						name: 'fieldId',
+						type: 'options',
+						typeOptions: { loadOptionsMethod: 'getInvoiceCustomFields' },
+						default: '',
+						description:
+							'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+					},
+					{
+						displayName: 'Field Value',
+						name: 'fieldValue',
+						type: 'string',
+						default: '',
+					},
+				],
 			},
 		],
 	},
@@ -568,6 +757,18 @@ export const invoiceFields: INodeProperties[] = [
 	},
 
 	// ----------------------------------
+	//         invoice: credit
+	// ----------------------------------
+	{
+		displayName: 'Credit Note Date',
+		name: 'creditNoteDate',
+		type: 'dateTime',
+		default: '',
+		displayOptions: { show: { resource: ['invoice'], operation: ['credit'] } },
+		description: 'Date for the credit note (YYYY-MM-DD). Defaults to today if not specified.',
+	},
+
+	// ----------------------------------
 	//         invoice: creditPartially
 	// ----------------------------------
 	{
@@ -577,7 +778,7 @@ export const invoiceFields: INodeProperties[] = [
 		required: true,
 		default: '[]',
 		displayOptions: { show: { resource: ['invoice'], operation: ['creditPartially'] } },
-		description: 'Array of line item groups for the credit note in JSON format',
+		description: 'Array of line item groups for the credit note in JSON format. Example: [{"section":{"title":"Credit"},"line_items":[{"quantity":1,"description":"Item","unit_price":{"amount":100,"currency":"EUR"},"tax":{"rate":0.21}}]}]',
 	},
 
 	// ----------------------------------

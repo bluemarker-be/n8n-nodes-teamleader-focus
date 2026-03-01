@@ -24,6 +24,20 @@ export const timeTrackingFields: INodeProperties[] = [
 	//         timeTracking: add
 	// ----------------------------------
 	{
+		displayName: 'Time Input Mode',
+		name: 'timeInputMode',
+		type: 'options',
+		options: [
+			{ name: 'Start Time & Duration', value: 'startedAtDuration' },
+			{ name: 'Start & End Time', value: 'startedAtEndedAt' },
+			{ name: 'Date & Duration', value: 'startedOnDuration', description: 'Only available if duration time tracking is enabled' },
+		],
+		required: true,
+		default: 'startedAtDuration',
+		displayOptions: { show: { resource: ['timeTracking'], operation: ['add'] } },
+		description: 'How to specify the time period for this entry',
+	},
+	{
 		displayName: 'Work Type Name or ID',
 		name: 'work_type_id',
 		type: 'options',
@@ -40,7 +54,9 @@ export const timeTrackingFields: INodeProperties[] = [
 		type: 'dateTime',
 		required: true,
 		default: '',
-		displayOptions: { show: { resource: ['timeTracking'], operation: ['add'] } },
+		displayOptions: {
+			show: { resource: ['timeTracking'], operation: ['add'], timeInputMode: ['startedAtDuration', 'startedAtEndedAt'] },
+		},
 		description: 'Date and time when the work started',
 	},
 	{
@@ -50,8 +66,32 @@ export const timeTrackingFields: INodeProperties[] = [
 		typeOptions: { minValue: 1 },
 		required: true,
 		default: 3600,
-		displayOptions: { show: { resource: ['timeTracking'], operation: ['add'] } },
+		displayOptions: {
+			show: { resource: ['timeTracking'], operation: ['add'], timeInputMode: ['startedAtDuration', 'startedOnDuration'] },
+		},
 		description: 'Duration of the time tracking entry in seconds',
+	},
+	{
+		displayName: 'Ended At',
+		name: 'ended_at',
+		type: 'dateTime',
+		required: true,
+		default: '',
+		displayOptions: {
+			show: { resource: ['timeTracking'], operation: ['add'], timeInputMode: ['startedAtEndedAt'] },
+		},
+		description: 'Date and time when the work ended',
+	},
+	{
+		displayName: 'Started On',
+		name: 'started_on',
+		type: 'dateTime',
+		required: true,
+		default: '',
+		displayOptions: {
+			show: { resource: ['timeTracking'], operation: ['add'], timeInputMode: ['startedOnDuration'] },
+		},
+		description: 'Date when the work started (only available if duration time tracking is enabled)',
 	},
 	{
 		displayName: 'Subject Type',
@@ -60,10 +100,11 @@ export const timeTrackingFields: INodeProperties[] = [
 		options: [
 			{ name: 'Company', value: 'company' },
 			{ name: 'Contact', value: 'contact' },
-			{ name: 'Deal', value: 'deal' },
+			{ name: 'Event', value: 'event' },
 			{ name: 'Milestone', value: 'milestone' },
-			{ name: 'Project', value: 'project' },
+			{ name: 'NextGen Task', value: 'nextgenTask' },
 			{ name: 'Ticket', value: 'ticket' },
+			{ name: 'Todo', value: 'todo' },
 		],
 		required: true,
 		default: 'contact',
@@ -186,10 +227,10 @@ export const timeTrackingFields: INodeProperties[] = [
 				options: [
 					{ name: 'Company', value: 'company' },
 					{ name: 'Contact', value: 'contact' },
-					{ name: 'Deal', value: 'deal' },
+					{ name: 'Event', value: 'event' },
 					{ name: 'Milestone', value: 'milestone' },
-					{ name: 'Project', value: 'project' },
 					{ name: 'Ticket', value: 'ticket' },
+					{ name: 'Todo', value: 'todo' },
 				],
 				default: 'contact',
 			},
@@ -236,6 +277,51 @@ export const timeTrackingFields: INodeProperties[] = [
 	//         timeTracking: update
 	// ----------------------------------
 	{
+		displayName: 'Time Input Mode',
+		name: 'timeInputMode',
+		type: 'options',
+		options: [
+			{ name: 'Start Time', value: 'startedAt' },
+			{ name: 'Date Only', value: 'startedOn', description: 'Only available if duration time tracking is enabled' },
+		],
+		required: true,
+		default: 'startedAt',
+		displayOptions: { show: { resource: ['timeTracking'], operation: ['update'] } },
+		description: 'How to specify the start time for this entry',
+	},
+	{
+		displayName: 'Started At',
+		name: 'started_at',
+		type: 'dateTime',
+		required: true,
+		default: '',
+		displayOptions: {
+			show: { resource: ['timeTracking'], operation: ['update'], timeInputMode: ['startedAt'] },
+		},
+		description: 'Start date and time of the time tracking entry',
+	},
+	{
+		displayName: 'Started On',
+		name: 'started_on',
+		type: 'dateTime',
+		required: true,
+		default: '',
+		displayOptions: {
+			show: { resource: ['timeTracking'], operation: ['update'], timeInputMode: ['startedOn'] },
+		},
+		description: 'Date when the work started (only available if duration time tracking is enabled)',
+	},
+	{
+		displayName: 'Duration (Seconds)',
+		name: 'duration',
+		type: 'number',
+		typeOptions: { minValue: 1 },
+		required: true,
+		default: 3600,
+		displayOptions: { show: { resource: ['timeTracking'], operation: ['update'] } },
+		description: 'Duration of the time tracking entry in seconds',
+	},
+	{
 		displayName: 'Update Fields',
 		name: 'updateFields',
 		type: 'collection',
@@ -253,33 +339,11 @@ export const timeTrackingFields: INodeProperties[] = [
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
 			{
-				displayName: 'Started At',
-				name: 'started_at',
-				type: 'dateTime',
-				default: '',
-			},
-			{
-				displayName: 'Duration (Seconds)',
-				name: 'duration',
-				type: 'number',
-				typeOptions: { minValue: 1 },
-				default: 3600,
-			},
-			{
 				displayName: 'Description',
 				name: 'description',
 				type: 'string',
 				typeOptions: { rows: 4 },
 				default: '',
-			},
-			{
-				displayName: 'User Name or ID',
-				name: 'user_id',
-				type: 'options',
-				typeOptions: { loadOptionsMethod: 'getUsers' },
-				default: '',
-				description:
-					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
 			{
 				displayName: 'Invoiceable',
@@ -294,10 +358,10 @@ export const timeTrackingFields: INodeProperties[] = [
 				options: [
 					{ name: 'Company', value: 'company' },
 					{ name: 'Contact', value: 'contact' },
-					{ name: 'Deal', value: 'deal' },
+					{ name: 'Event', value: 'event' },
 					{ name: 'Milestone', value: 'milestone' },
-					{ name: 'Project', value: 'project' },
 					{ name: 'Ticket', value: 'ticket' },
+					{ name: 'Todo', value: 'todo' },
 				],
 				default: 'contact',
 			},

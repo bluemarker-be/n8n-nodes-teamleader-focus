@@ -120,6 +120,7 @@ export const contactFields: INodeProperties[] = [
 				options: [
 					{ name: 'Male', value: 'male' },
 					{ name: 'Female', value: 'female' },
+					{ name: 'Unknown', value: 'unknown' },
 				],
 				default: 'male',
 			},
@@ -441,6 +442,7 @@ export const contactFields: INodeProperties[] = [
 				options: [
 					{ name: 'Male', value: 'male' },
 					{ name: 'Female', value: 'female' },
+					{ name: 'Unknown', value: 'unknown' },
 				],
 				default: 'male',
 			},
@@ -459,6 +461,12 @@ export const contactFields: INodeProperties[] = [
 			{
 				displayName: 'BIC',
 				name: 'bic',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'National Identification Number',
+				name: 'national_identification_number',
 				type: 'string',
 				default: '',
 			},

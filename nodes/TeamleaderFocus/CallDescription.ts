@@ -86,37 +86,6 @@ export const callFields: INodeProperties[] = [
 				default: '',
 				description: 'The ID of the related deal',
 			},
-			{
-				displayName: 'Outcome Name or ID',
-				name: 'outcome_id',
-				type: 'options',
-				typeOptions: { loadOptionsMethod: 'getCallOutcomes' },
-				default: '',
-				description:
-					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
-			},
-			{
-				displayName: 'Summary',
-				name: 'summary',
-				type: 'string',
-				typeOptions: { rows: 4 },
-				default: '',
-			},
-			{
-				displayName: 'Started At',
-				name: 'started_at',
-				type: 'dateTime',
-				default: '',
-				description: 'Date and time when the call started',
-			},
-			{
-				displayName: 'Duration (Seconds)',
-				name: 'duration',
-				type: 'number',
-				typeOptions: { minValue: 0 },
-				default: 0,
-				description: 'Duration of the call in seconds',
-			},
 		],
 	},
 
@@ -162,8 +131,8 @@ export const callFields: INodeProperties[] = [
 	//         call: complete
 	// ----------------------------------
 	{
-		displayName: 'Outcome Name or ID',
-		name: 'outcome_id',
+		displayName: 'Call Outcome Name or ID',
+		name: 'call_outcome_id',
 		type: 'options',
 		typeOptions: { loadOptionsMethod: 'getCallOutcomes' },
 		default: '',
@@ -172,13 +141,13 @@ export const callFields: INodeProperties[] = [
 			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 	},
 	{
-		displayName: 'Summary',
-		name: 'summary',
+		displayName: 'Outcome Summary',
+		name: 'outcome_summary',
 		type: 'string',
 		typeOptions: { rows: 4 },
 		default: '',
 		displayOptions: { show: { resource: ['call'], operation: ['complete'] } },
-		description: 'Summary of the call',
+		description: 'Summary of the call outcome',
 	},
 
 	// ----------------------------------
@@ -192,22 +161,6 @@ export const callFields: INodeProperties[] = [
 		default: {},
 		displayOptions: { show: { resource: ['call'], operation: ['update'] } },
 		options: [
-			{
-				displayName: 'Outcome Name or ID',
-				name: 'outcome_id',
-				type: 'options',
-				typeOptions: { loadOptionsMethod: 'getCallOutcomes' },
-				default: '',
-				description:
-					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
-			},
-			{
-				displayName: 'Summary',
-				name: 'summary',
-				type: 'string',
-				typeOptions: { rows: 4 },
-				default: '',
-			},
 			{
 				displayName: 'Description',
 				name: 'description',
@@ -240,6 +193,13 @@ export const callFields: INodeProperties[] = [
 				description: 'ID of the participant customer',
 			},
 			{
+				displayName: 'Deal ID',
+				name: 'deal_id',
+				type: 'string',
+				default: '',
+				description: 'The ID of the related deal',
+			},
+			{
 				displayName: 'Assignee User Name or ID',
 				name: 'assignee_user_id',
 				type: 'options',
@@ -247,6 +207,38 @@ export const callFields: INodeProperties[] = [
 				default: '',
 				description:
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+		],
+	},
+	{
+		displayName: 'Custom Fields',
+		name: 'customFields',
+		type: 'fixedCollection',
+		typeOptions: { multipleValues: true },
+		placeholder: 'Add Custom Field',
+		default: {},
+		displayOptions: { show: { resource: ['call'], operation: ['add', 'update'] } },
+		options: [
+			{
+				displayName: 'Field',
+				name: 'field',
+				values: [
+					{
+						displayName: 'Field Name or ID',
+						name: 'fieldId',
+						type: 'options',
+						typeOptions: { loadOptionsMethod: 'getCallCustomFields' },
+						default: '',
+						description:
+							'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+					},
+					{
+						displayName: 'Field Value',
+						name: 'fieldValue',
+						type: 'string',
+						default: '',
+					},
+				],
 			},
 		],
 	},
