@@ -46,6 +46,14 @@ export const dealPipelineFields: INodeProperties[] = [
 		},
 	},
 	{
+		displayName: 'Migrate Phases (JSON)',
+		name: 'migratePhases',
+		type: 'json',
+		default: '[]',
+		displayOptions: { show: { resource: ['dealPipeline'], operation: ['delete'] } },
+		description: 'JSON array mapping old phases to new ones, e.g. [{"from_phase_id":"...","to_phase_id":"..."}]. Required when the pipeline has deals.',
+	},
+	{
 		displayName: 'Return All',
 		name: 'returnAll',
 		type: 'boolean',

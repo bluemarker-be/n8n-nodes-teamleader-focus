@@ -77,6 +77,15 @@ export const projectMaterialFields: INodeProperties[] = [
 				typeOptions: { numberPrecision: 2 },
 				default: 0,
 			},
+			{
+				displayName: 'Unit Price Currency',
+				name: 'unit_price_currency',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getCurrencies' },
+				default: '',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
 		],
 	},
 	{

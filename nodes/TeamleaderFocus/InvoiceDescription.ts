@@ -177,6 +177,20 @@ export const invoiceFields: INodeProperties[] = [
 				type: 'string',
 				default: '',
 			},
+			{
+				displayName: 'For Attention Of (Name)',
+				name: 'for_attention_of_name',
+				type: 'string',
+				default: '',
+				description: 'Name of the person to address the invoice to (free text)',
+			},
+			{
+				displayName: 'For Attention Of (Contact ID)',
+				name: 'for_attention_of_contact_id',
+				type: 'string',
+				default: '',
+				description: 'Contact ID of the person to address the invoice to',
+			},
 		],
 	},
 
@@ -209,6 +223,83 @@ export const invoiceFields: INodeProperties[] = [
 				],
 			},
 		},
+	},
+
+	// ----------------------------------
+	//         invoice: book
+	// ----------------------------------
+	{
+		displayName: 'Book Date',
+		name: 'bookDate',
+		type: 'dateTime',
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['invoice'], operation: ['book'] } },
+		description: 'The date on which the invoice is booked (YYYY-MM-DD)',
+	},
+
+	// ----------------------------------
+	//         invoice: send
+	// ----------------------------------
+	{
+		displayName: 'From Email',
+		name: 'fromEmail',
+		type: 'string',
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['invoice'], operation: ['send'] } },
+		description: 'The email address to send from',
+	},
+	{
+		displayName: 'Recipients (To)',
+		name: 'recipientsTo',
+		type: 'json',
+		required: true,
+		default: '[]',
+		displayOptions: { show: { resource: ['invoice'], operation: ['send'] } },
+		description: 'JSON array of recipient objects, e.g. [{"customer":{"type":"contact","id":"..."}}] or [{"email":"..."}]',
+	},
+	{
+		displayName: 'Subject',
+		name: 'emailSubject',
+		type: 'string',
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['invoice'], operation: ['send'] } },
+	},
+	{
+		displayName: 'Body',
+		name: 'emailBody',
+		type: 'string',
+		typeOptions: { rows: 6 },
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['invoice'], operation: ['send'] } },
+		description: 'The email body content',
+	},
+	{
+		displayName: 'Additional Send Fields',
+		name: 'sendAdditionalFields',
+		type: 'collection',
+		placeholder: 'Add Field',
+		default: {},
+		displayOptions: { show: { resource: ['invoice'], operation: ['send'] } },
+		options: [
+			{
+				displayName: 'CC',
+				name: 'cc',
+				type: 'json',
+				default: '[]',
+				description: 'JSON array of CC recipients',
+			},
+			{
+				displayName: 'BCC',
+				name: 'bcc',
+				type: 'json',
+				default: '[]',
+				description: 'JSON array of BCC recipients',
+			},
+		],
 	},
 
 	// ----------------------------------
@@ -480,13 +571,13 @@ export const invoiceFields: INodeProperties[] = [
 	//         invoice: creditPartially
 	// ----------------------------------
 	{
-		displayName: 'Credit Note Lines (JSON)',
-		name: 'creditNoteLines',
+		displayName: 'Grouped Lines (JSON)',
+		name: 'groupedLines',
 		type: 'json',
 		required: true,
 		default: '[]',
 		displayOptions: { show: { resource: ['invoice'], operation: ['creditPartially'] } },
-		description: 'Array of credit note line items in JSON format',
+		description: 'Array of line item groups for the credit note in JSON format',
 	},
 
 	// ----------------------------------

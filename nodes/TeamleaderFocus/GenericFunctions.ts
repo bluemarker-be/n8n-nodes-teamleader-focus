@@ -12,12 +12,70 @@ import { NodeApiError } from 'n8n-workflow';
 
 const BASE_URL = 'https://api.focus.teamleader.eu';
 
+/**
+ * Fields that the Teamleader API expects as date-only (YYYY-MM-DD),
+ * not full ISO 8601 timestamps. n8n's dateTime picker outputs ISO strings,
+ * so we strip the time component before sending.
+ */
+const DATE_ONLY_FIELDS = new Set([
+	'estimated_closing_date',
+	'estimated_closing_date_from',
+	'estimated_closing_date_until',
+	'birthdate',
+	'invoice_date',
+	'invoice_date_after',
+	'invoice_date_before',
+	'delivery_date',
+	'credit_note_date',
+	'receipt_date',
+	'starts_on',
+	'ends_on',
+	'start_date',
+	'end_date',
+	'due_on',
+	'due_before',
+	'due_after',
+	'due_date',
+	'day',
+	'date',
+	'on',
+	'started_on',
+	'starts_after',
+	'ends_before',
+]);
+
+/**
+ * Convert an ISO 8601 datetime string to date-only (YYYY-MM-DD).
+ * If the value is already date-only or not a valid date string, returns as-is.
+ */
+function toDateOnly(value: string): string {
+	const match = value.match(/^\d{4}-\d{2}-\d{2}/);
+	return match ? match[0] : value;
+}
+
+/**
+ * Recursively walk through a request body and convert any date-only fields
+ * from ISO 8601 timestamps to YYYY-MM-DD format.
+ */
+function sanitizeDateFields(obj: IDataObject): void {
+	for (const [key, value] of Object.entries(obj)) {
+		if (DATE_ONLY_FIELDS.has(key) && typeof value === 'string') {
+			obj[key] = toDateOnly(value);
+		} else if (value && typeof value === 'object' && !Array.isArray(value)) {
+			sanitizeDateFields(value as IDataObject);
+		}
+	}
+}
+
 export async function teamleaderApiRequest(
 	this: IExecuteFunctions | ILoadOptionsFunctions | IHookFunctions | IWebhookFunctions,
 	method: IHttpRequestMethods,
 	endpoint: string,
 	body: IDataObject = {},
 ): Promise<IDataObject> {
+	// Convert date-only fields from ISO timestamps to YYYY-MM-DD
+	sanitizeDateFields(body);
+
 	const options: IRequestOptions = {
 		method,
 		body,

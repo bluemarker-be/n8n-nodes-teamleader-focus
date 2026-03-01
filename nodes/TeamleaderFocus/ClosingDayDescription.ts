@@ -18,12 +18,13 @@ export const closingDayOperations: INodeProperties[] = [
 
 export const closingDayFields: INodeProperties[] = [
 	{
-		displayName: 'Date',
-		name: 'date',
+		displayName: 'Day',
+		name: 'day',
 		type: 'dateTime',
 		required: true,
 		default: '',
 		displayOptions: { show: { resource: ['closingDay'], operation: ['add'] } },
+		description: 'The date for the closing day (YYYY-MM-DD)',
 	},
 	{
 		displayName: 'Additional Fields',

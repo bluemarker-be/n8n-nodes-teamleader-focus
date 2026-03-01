@@ -56,14 +56,14 @@ export const userFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['user'], operation: ['listDaysOff'] } },
 		options: [
 			{
-				displayName: 'Started After',
-				name: 'started_after',
+				displayName: 'Starts After',
+				name: 'starts_after',
 				type: 'dateTime',
 				default: '',
 			},
 			{
-				displayName: 'Started Before',
-				name: 'started_before',
+				displayName: 'Ends Before',
+				name: 'ends_before',
 				type: 'dateTime',
 				default: '',
 			},

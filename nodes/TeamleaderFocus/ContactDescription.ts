@@ -484,6 +484,31 @@ export const contactFields: INodeProperties[] = [
 				type: 'boolean',
 				default: false,
 			},
+			{
+				displayName: 'Address Line 1',
+				name: 'addressLine1',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'Postal Code',
+				name: 'postalCode',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'City',
+				name: 'city',
+				type: 'string',
+				default: '',
+			},
+			{
+				displayName: 'Country',
+				name: 'country',
+				type: 'string',
+				default: '',
+				description: 'ISO 3166-1 alpha-2 country code (e.g. BE, NL, FR)',
+			},
 		],
 	},
 	{

@@ -156,11 +156,20 @@ export const productFields: INodeProperties[] = [
 				default: '',
 			},
 			{
-				displayName: 'Unit Price Amount',
-				name: 'unit_price_amount',
+				displayName: 'Selling Price Amount',
+				name: 'selling_price_amount',
 				type: 'number',
 				typeOptions: { numberPrecision: 2 },
 				default: 0,
+			},
+			{
+				displayName: 'Selling Price Currency',
+				name: 'selling_price_currency',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getCurrencies' },
+				default: '',
+				description:
+					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
 		],
 	},

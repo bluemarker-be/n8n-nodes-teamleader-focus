@@ -34,12 +34,24 @@ export const taskFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['task'], operation: ['create'] } },
 	},
 	{
-		displayName: 'Due Date',
-		name: 'dueDate',
+		displayName: 'Due On',
+		name: 'dueOn',
 		type: 'dateTime',
 		required: true,
 		default: '',
 		displayOptions: { show: { resource: ['task'], operation: ['create'] } },
+		description: 'The due date for the task (YYYY-MM-DD)',
+	},
+	{
+		displayName: 'Work Type Name or ID',
+		name: 'workTypeId',
+		type: 'options',
+		typeOptions: { loadOptionsMethod: 'getWorkTypes' },
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['task'], operation: ['create'] } },
+		description:
+			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 	},
 	{
 		displayName: 'Additional Fields',
@@ -55,15 +67,6 @@ export const taskFields: INodeProperties[] = [
 				type: 'string',
 				typeOptions: { rows: 4 },
 				default: '',
-			},
-			{
-				displayName: 'Work Type Name or ID',
-				name: 'work_type_id',
-				type: 'options',
-				typeOptions: { loadOptionsMethod: 'getWorkTypes' },
-				default: '',
-				description:
-					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
 			{
 				displayName: 'Assignee Name or ID',
@@ -91,10 +94,21 @@ export const taskFields: INodeProperties[] = [
 				default: '',
 			},
 			{
-				displayName: 'Estimated Duration (seconds)',
-				name: 'estimated_duration',
+				displayName: 'Estimated Duration (Value)',
+				name: 'estimated_duration_value',
 				type: 'number',
 				default: 0,
+				description: 'Numeric value for estimated duration',
+			},
+			{
+				displayName: 'Estimated Duration (Unit)',
+				name: 'estimated_duration_unit',
+				type: 'options',
+				options: [
+					{ name: 'Hours', value: 'hours' },
+					{ name: 'Minutes', value: 'minutes' },
+				],
+				default: 'hours',
 			},
 		],
 	},
@@ -236,8 +250,8 @@ export const taskFields: INodeProperties[] = [
 				default: '',
 			},
 			{
-				displayName: 'Due Date',
-				name: 'due_date',
+				displayName: 'Due On',
+				name: 'due_on',
 				type: 'dateTime',
 				default: '',
 			},
@@ -258,6 +272,22 @@ export const taskFields: INodeProperties[] = [
 				default: '',
 				description:
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Estimated Duration (Value)',
+				name: 'estimated_duration_value',
+				type: 'number',
+				default: 0,
+			},
+			{
+				displayName: 'Estimated Duration (Unit)',
+				name: 'estimated_duration_unit',
+				type: 'options',
+				options: [
+					{ name: 'Hours', value: 'hours' },
+					{ name: 'Minutes', value: 'minutes' },
+				],
+				default: 'hours',
 			},
 		],
 	},
@@ -298,12 +328,21 @@ export const taskFields: INodeProperties[] = [
 	//         task: schedule
 	// ----------------------------------
 	{
-		displayName: 'Scheduled At',
-		name: 'scheduledAt',
+		displayName: 'Starts At',
+		name: 'startsAt',
 		type: 'dateTime',
 		required: true,
 		default: '',
 		displayOptions: { show: { resource: ['task'], operation: ['schedule'] } },
-		description: 'Date and time to schedule the task',
+		description: 'Start date and time for the scheduled task',
+	},
+	{
+		displayName: 'Ends At',
+		name: 'endsAt',
+		type: 'dateTime',
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['task'], operation: ['schedule'] } },
+		description: 'End date and time for the scheduled task',
 	},
 ];

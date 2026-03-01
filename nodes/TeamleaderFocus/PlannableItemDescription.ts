@@ -20,12 +20,25 @@ export const plannableItemFields: INodeProperties[] = [
 	//         plannableItem: get
 	// ----------------------------------
 	{
-		displayName: 'Plannable Item ID',
-		name: 'id',
+		displayName: 'Source Type',
+		name: 'sourceType',
+		type: 'options',
+		options: [
+			{ name: 'Task', value: 'task' },
+			{ name: 'Material', value: 'material' },
+		],
+		required: true,
+		default: 'task',
+		displayOptions: { show: { resource: ['plannableItem'], operation: ['get'] } },
+	},
+	{
+		displayName: 'Source ID',
+		name: 'sourceId',
 		type: 'string',
 		required: true,
 		default: '',
 		displayOptions: { show: { resource: ['plannableItem'], operation: ['get'] } },
+		description: 'The ID of the source task or material',
 	},
 
 	// ----------------------------------

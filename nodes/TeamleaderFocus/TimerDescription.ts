@@ -92,6 +92,28 @@ export const timerFields: INodeProperties[] = [
 				typeOptions: { rows: 4 },
 				default: '',
 			},
+			{
+				displayName: 'Subject Type',
+				name: 'subject_type',
+				type: 'options',
+				options: [
+					{ name: 'Company', value: 'company' },
+					{ name: 'Contact', value: 'contact' },
+					{ name: 'Deal', value: 'deal' },
+					{ name: 'Milestone', value: 'milestone' },
+					{ name: 'Project', value: 'project' },
+					{ name: 'Ticket', value: 'ticket' },
+				],
+				default: 'contact',
+				description: 'Type of the subject to track time on',
+			},
+			{
+				displayName: 'Subject ID',
+				name: 'subject_id',
+				type: 'string',
+				default: '',
+				description: 'ID of the subject to track time on',
+			},
 		],
 	},
 ];

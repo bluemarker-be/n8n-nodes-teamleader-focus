@@ -52,6 +52,15 @@ export const meetingFields: INodeProperties[] = [
 		description: 'End date and time of the meeting',
 	},
 	{
+		displayName: 'Attendees (JSON)',
+		name: 'attendees',
+		type: 'json',
+		required: true,
+		default: '[]',
+		displayOptions: { show: { resource: ['meeting'], operation: ['schedule'] } },
+		description: 'JSON array of attendee objects (min 1 user required), e.g. [{"type":"user","id":"..."}]',
+	},
+	{
 		displayName: 'Additional Fields',
 		name: 'additionalFields',
 		type: 'collection',
@@ -67,11 +76,36 @@ export const meetingFields: INodeProperties[] = [
 				default: '',
 			},
 			{
-				displayName: 'Attendees (JSON)',
-				name: 'attendees',
-				type: 'json',
-				default: '[]',
-				description: 'JSON array of attendee objects, e.g. [{"type":"contact","id":"..."}]',
+				displayName: 'Customer Type',
+				name: 'customer_type',
+				type: 'options',
+				options: [
+					{ name: 'Contact', value: 'contact' },
+					{ name: 'Company', value: 'company' },
+				],
+				default: 'contact',
+				description: 'Type of the related customer',
+			},
+			{
+				displayName: 'Customer ID',
+				name: 'customer_id',
+				type: 'string',
+				default: '',
+				description: 'ID of the related customer',
+			},
+			{
+				displayName: 'Deal ID',
+				name: 'deal_id',
+				type: 'string',
+				default: '',
+				description: 'The ID of the related deal',
+			},
+			{
+				displayName: 'Milestone ID',
+				name: 'milestone_id',
+				type: 'string',
+				default: '',
+				description: 'The ID of the related milestone',
 			},
 			{
 				displayName: 'Location',
@@ -140,14 +174,14 @@ export const meetingFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['meeting'], operation: ['getMany'] } },
 		options: [
 			{
-				displayName: 'Starts After',
-				name: 'starts_after',
+				displayName: 'Start Date',
+				name: 'start_date',
 				type: 'dateTime',
 				default: '',
 			},
 			{
-				displayName: 'Starts Before',
-				name: 'starts_before',
+				displayName: 'End Date',
+				name: 'end_date',
 				type: 'dateTime',
 				default: '',
 			},
@@ -212,6 +246,24 @@ export const meetingFields: INodeProperties[] = [
 				description:
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
+			{
+				displayName: 'Customer Type',
+				name: 'customer_type',
+				type: 'options',
+				options: [
+					{ name: 'Contact', value: 'contact' },
+					{ name: 'Company', value: 'company' },
+				],
+				default: 'contact',
+				description: 'Type of the related customer',
+			},
+			{
+				displayName: 'Customer ID',
+				name: 'customer_id',
+				type: 'string',
+				default: '',
+				description: 'ID of the related customer',
+			},
 		],
 	},
 
@@ -219,13 +271,26 @@ export const meetingFields: INodeProperties[] = [
 	//         meeting: createReport
 	// ----------------------------------
 	{
-		displayName: 'Report Body',
-		name: 'reportBody',
+		displayName: 'Attach To Type',
+		name: 'attachToType',
+		type: 'options',
+		options: [
+			{ name: 'Contact', value: 'contact' },
+			{ name: 'Company', value: 'company' },
+			{ name: 'Deal', value: 'deal' },
+		],
+		required: true,
+		default: 'contact',
+		displayOptions: { show: { resource: ['meeting'], operation: ['createReport'] } },
+		description: 'Type of the entity to attach the report to',
+	},
+	{
+		displayName: 'Attach To ID',
+		name: 'attachToId',
 		type: 'string',
-		typeOptions: { rows: 6 },
 		required: true,
 		default: '',
 		displayOptions: { show: { resource: ['meeting'], operation: ['createReport'] } },
-		description: 'The content of the meeting report',
+		description: 'ID of the entity to attach the report to',
 	},
 ];

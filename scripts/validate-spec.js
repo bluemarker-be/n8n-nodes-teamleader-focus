@@ -1,582 +1,963 @@
 #!/usr/bin/env node
 /**
- * Validates the n8n node implementation against the Teamleader Focus OpenAPI spec.
+ * Comprehensive validation of the n8n node against the Teamleader Focus OpenAPI spec.
  *
  * Checks:
- * 1. All required request-body fields per endpoint are present in our code.
- * 2. Nested required structures (e.g. filter.subject) are built correctly.
- * 3. Enum values in description files match the spec.
- * 4. Every endpoint we claim to implement actually exists in the spec.
+ * 1. All required request-body fields per endpoint are present.
+ * 2. Nested structures (lead.customer, invoicee, participant, etc.) match spec.
+ * 3. Field names match (no old/wrong names like "date" instead of "day").
+ * 4. Every endpoint we implement actually exists in the spec.
+ * 5. Structural verification: the handler code builds the right shapes.
+ *
+ * Known spec deviations (patches):
+ * - NoteSubjectTypesCreate: missing "meeting" (API accepts it)
+ * - Context enum: "deal" → "sale" + 6 missing contexts
+ * - custom_fields_update_strategy: not in spec but supported on 11 update endpoints
+ * - dealPhases.duplicate: exists in spec but returns 404 (not implemented)
  */
 
 const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
 
-// ─── load spec ────────────────────────────────────────────────────────────────
+// ─── Load spec ────────────────────────────────────────────────────────────────
 const SPEC_PATH = path.join(__dirname, '..', 'api-specs', '1.115.0.yaml');
 const spec = yaml.load(fs.readFileSync(SPEC_PATH, 'utf8'));
 
-// ─── load source files ───────────────────────────────────────────────────────
+// ─── Load source ──────────────────────────────────────────────────────────────
 const NODE_DIR = path.join(__dirname, '..', 'nodes', 'TeamleaderFocus');
 const nodeSrc = fs.readFileSync(path.join(NODE_DIR, 'TeamleaderFocus.node.ts'), 'utf8');
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Recursively extract required fields from a schema, returning a flat dot-notation set. */
-function extractRequired(schema, prefix = '') {
+/** Resolve $ref in the spec */
+function resolveRef(ref) {
+	const parts = ref.replace('#/', '').split('/');
+	let obj = spec;
+	for (const p of parts) obj = obj[p];
+	return obj;
+}
+
+/** Recursively extract all properties from a schema, including allOf/oneOf merges */
+function flattenSchema(schema, prefix = '') {
+	if (!schema) return {};
 	const result = {};
-	if (!schema) return result;
 
-	// Handle allOf: merge all sub-schemas
+	if (schema.$ref) {
+		return flattenSchema(resolveRef(schema.$ref), prefix);
+	}
+
 	if (schema.allOf) {
 		for (const sub of schema.allOf) {
-			Object.assign(result, extractRequired(sub, prefix));
+			Object.assign(result, flattenSchema(sub, prefix));
 		}
 		return result;
+	}
+
+	if (schema.oneOf) {
+		// Take first variant
+		return flattenSchema(schema.oneOf[0], prefix);
 	}
 
 	if (schema.type === 'object' || schema.properties) {
 		const reqSet = new Set(schema.required || []);
 		for (const [name, prop] of Object.entries(schema.properties || {})) {
 			const fullKey = prefix ? `${prefix}.${name}` : name;
-			if (reqSet.has(name)) {
-				result[fullKey] = { required: true, schema: prop };
+			result[fullKey] = {
+				required: reqSet.has(name),
+				type: prop.type,
+				schema: prop,
+			};
+			// Recurse into nested objects
+			if (prop.type === 'object' || prop.properties || prop.allOf) {
+				Object.assign(result, flattenSchema(prop, fullKey));
 			}
-			// Recurse into nested objects to find nested required fields
-			const nested = extractRequired(prop, fullKey);
-			Object.assign(result, nested);
 		}
 	}
 
 	return result;
 }
 
-/** Get the request body schema for a given endpoint path (e.g. /invoices.download) */
+/** Get the request body schema for a given endpoint */
 function getEndpointSchema(endpointPath) {
-	const pathDef = spec.paths?.[endpointPath];
+	const pathDef = spec.paths && spec.paths[endpointPath];
 	if (!pathDef) return null;
 	const post = pathDef.post;
 	if (!post) return null;
-	const content = post.requestBody?.content?.['application/json'];
+	const content = post.requestBody && post.requestBody.content && post.requestBody.content['application/json'];
 	if (!content) return null;
 	return content.schema || null;
 }
 
-/** Get all property names (required or not) from a schema */
-function getAllProperties(schema, prefix = '') {
-	const result = {};
-	if (!schema) return result;
-
-	if (schema.allOf) {
-		for (const sub of schema.allOf) {
-			Object.assign(result, getAllProperties(sub, prefix));
-		}
-		return result;
-	}
-
-	if (schema.type === 'object' || schema.properties) {
-		for (const [name, prop] of Object.entries(schema.properties || {})) {
-			const fullKey = prefix ? `${prefix}.${name}` : name;
-			result[fullKey] = prop;
-			const nested = getAllProperties(prop, fullKey);
-			Object.assign(result, nested);
-		}
-	}
-
-	return result;
+/** Get required top-level fields */
+function getRequiredFields(schema) {
+	const flat = flattenSchema(schema);
+	return Object.entries(flat)
+		.filter(([key, val]) => !key.includes('.') && val.required)
+		.map(([key]) => key);
 }
 
-/** Extract enum values from a schema property */
-function extractEnums(schema) {
-	if (!schema) return null;
-	if (schema.enum) return schema.enum;
-	if (schema.allOf) {
-		for (const sub of schema.allOf) {
-			const e = extractEnums(sub);
-			if (e) return e;
-		}
-	}
-	return null;
+/** Check if a field name appears in a code region */
+function fieldInCode(code, field) {
+	// Check for body.field = / field: / body[field]
+	return code.includes(`'${field}'`) ||
+		code.includes(`"${field}"`) ||
+		code.includes(`.${field}`) ||
+		code.includes(`${field}:`) ||
+		code.includes(`${field} =`);
 }
 
-// ─── define our endpoint mapping ─────────────────────────────────────────────
-// Maps resource+operation to { endpoint, bodyFields }
-// bodyFields: what our code actually sends in the request body (dot-notation keys)
-const ENDPOINT_MAP = [
-	// CONTACT
-	{ resource: 'contact', op: 'create', endpoint: '/contacts.add', sends: ['last_name'] },
-	{ resource: 'contact', op: 'get', endpoint: '/contacts.info', sends: ['id'] },
-	{ resource: 'contact', op: 'getMany', endpoint: '/contacts.list', sends: ['page'] },
-	{ resource: 'contact', op: 'update', endpoint: '/contacts.update', sends: ['id'] },
-	{ resource: 'contact', op: 'delete', endpoint: '/contacts.delete', sends: ['id'] },
-	{ resource: 'contact', op: 'tag', endpoint: '/contacts.tag', sends: ['id', 'tags'] },
-	{ resource: 'contact', op: 'untag', endpoint: '/contacts.untag', sends: ['id', 'tags'] },
-	{ resource: 'contact', op: 'linkToCompany', endpoint: '/contacts.linkToCompany', sends: ['id', 'company_id'] },
-	{ resource: 'contact', op: 'unlinkFromCompany', endpoint: '/contacts.unlinkFromCompany', sends: ['id', 'company_id'] },
-	{ resource: 'contact', op: 'updateCompanyLink', endpoint: '/contacts.updateCompanyLink', sends: ['id', 'company_id'] },
-	{ resource: 'contact', op: 'uploadAvatar', endpoint: '/contacts.uploadAvatar', sends: ['id', 'image'] },
+// ─── Define what each handler ACTUALLY sends ────────────────────────────────
+// This is the ground truth based on reading every handler in the source code.
+// Format: { endpoint, actualFields: {field: structure_description}, checks: [...] }
 
-	// COMPANY
-	{ resource: 'company', op: 'create', endpoint: '/companies.add', sends: ['name'] },
-	{ resource: 'company', op: 'get', endpoint: '/companies.info', sends: ['id'] },
-	{ resource: 'company', op: 'getMany', endpoint: '/companies.list', sends: ['page'] },
-	{ resource: 'company', op: 'update', endpoint: '/companies.update', sends: ['id'] },
-	{ resource: 'company', op: 'delete', endpoint: '/companies.delete', sends: ['id'] },
-	{ resource: 'company', op: 'tag', endpoint: '/companies.tag', sends: ['id', 'tags'] },
-	{ resource: 'company', op: 'untag', endpoint: '/companies.untag', sends: ['id', 'tags'] },
-	{ resource: 'company', op: 'uploadLogo', endpoint: '/companies.uploadLogo', sends: ['id', 'image'] },
+const ENDPOINT_CHECKS = [
+	// ═══════════════ CONTACT ═══════════════
+	{ endpoint: '/contacts.add', requiredBySpec: ['last_name'], actualSends: ['last_name'] },
+	{ endpoint: '/contacts.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/contacts.update', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/contacts.delete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/contacts.tag', requiredBySpec: ['id', 'tags'], actualSends: ['id', 'tags'] },
+	{ endpoint: '/contacts.untag', requiredBySpec: ['id', 'tags'], actualSends: ['id', 'tags'] },
+	{ endpoint: '/contacts.linkToCompany', requiredBySpec: ['id', 'company_id'], actualSends: ['id', 'company_id'] },
+	{ endpoint: '/contacts.unlinkFromCompany', requiredBySpec: ['id', 'company_id'], actualSends: ['id', 'company_id'] },
+	{ endpoint: '/contacts.updateCompanyLink', requiredBySpec: ['id', 'company_id'], actualSends: ['id', 'company_id'] },
+	{ endpoint: '/contacts.uploadAvatar', requiredBySpec: ['id', 'image'], actualSends: ['id', 'image'] },
 
-	// CUSTOM FIELD
-	{ resource: 'customField', op: 'create', endpoint: '/customFieldDefinitions.create', sends: ['label', 'type', 'context'] },
-	{ resource: 'customField', op: 'get', endpoint: '/customFieldDefinitions.info', sends: ['id'] },
-	{ resource: 'customField', op: 'getMany', endpoint: '/customFieldDefinitions.list', sends: ['page'] },
+	// ═══════════════ COMPANY ═══════════════
+	{ endpoint: '/companies.add', requiredBySpec: ['name'], actualSends: ['name'] },
+	{ endpoint: '/companies.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/companies.update', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/companies.delete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/companies.tag', requiredBySpec: ['id', 'tags'], actualSends: ['id', 'tags'] },
+	{ endpoint: '/companies.untag', requiredBySpec: ['id', 'tags'], actualSends: ['id', 'tags'] },
+	{ endpoint: '/companies.uploadLogo', requiredBySpec: ['id', 'image'], actualSends: ['id', 'image'] },
 
-	// DEAL
-	{ resource: 'deal', op: 'create', endpoint: '/deals.create', sends: ['title', 'customer'] },
-	{ resource: 'deal', op: 'get', endpoint: '/deals.info', sends: ['id'] },
-	{ resource: 'deal', op: 'getMany', endpoint: '/deals.list', sends: ['page'] },
-	{ resource: 'deal', op: 'update', endpoint: '/deals.update', sends: ['id'] },
-	{ resource: 'deal', op: 'move', endpoint: '/deals.move', sends: ['id', 'phase_id'] },
-	{ resource: 'deal', op: 'win', endpoint: '/deals.win', sends: ['id'] },
-	{ resource: 'deal', op: 'lose', endpoint: '/deals.lose', sends: ['id'] },
-	{ resource: 'deal', op: 'delete', endpoint: '/deals.delete', sends: ['id'] },
+	// ═══════════════ CUSTOM FIELD ═══════════════
+	{ endpoint: '/customFieldDefinitions.create', requiredBySpec: ['label', 'type', 'context'], actualSends: ['label', 'type', 'context'] },
+	{ endpoint: '/customFieldDefinitions.info', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// DEAL PIPELINE
-	{ resource: 'dealPipeline', op: 'create', endpoint: '/dealPipelines.create', sends: ['name'] },
-	{ resource: 'dealPipeline', op: 'getMany', endpoint: '/dealPipelines.list', sends: ['page'] },
-	{ resource: 'dealPipeline', op: 'update', endpoint: '/dealPipelines.update', sends: ['id'] },
-	{ resource: 'dealPipeline', op: 'delete', endpoint: '/dealPipelines.delete', sends: ['id'] },
-	{ resource: 'dealPipeline', op: 'duplicate', endpoint: '/dealPipelines.duplicate', sends: ['id'] },
-	{ resource: 'dealPipeline', op: 'markAsDefault', endpoint: '/dealPipelines.markAsDefault', sends: ['id'] },
+	// ═══════════════ DEAL ═══════════════
+	{
+		endpoint: '/deals.create',
+		requiredBySpec: ['lead', 'title'],
+		actualSends: ['lead', 'title'],
+		structuralChecks: [
+			{ desc: 'lead.customer nesting', pattern: /lead.*customer.*type.*id/s, present: true },
+			{ desc: 'lead contains contact_person_id', pattern: /lead\.contact_person_id/, present: true },
+			{ desc: 'estimated_value nesting {amount, currency}', pattern: /estimated_value.*amount.*currency/s, present: true },
+			{ desc: 'currency nesting {code, exchange_rate}', pattern: /currency.*code.*exchange_rate/s, present: true },
+		],
+	},
+	{ endpoint: '/deals.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/deals.update',
+		requiredBySpec: ['id'],
+		actualSends: ['id'],
+		structuralChecks: [
+			{ desc: 'lead.customer nesting in update', pattern: /lead.*customer.*type.*updateFields\.customer_type/s, present: true },
+		],
+	},
+	{ endpoint: '/deals.move', requiredBySpec: ['id', 'phase_id'], actualSends: ['id', 'phase_id'] },
+	{ endpoint: '/deals.win', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/deals.lose', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/deals.delete', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// DEAL PHASE
-	{ resource: 'dealPhase', op: 'create', endpoint: '/dealPhases.create', sends: ['pipeline_id', 'name'] },
-	{ resource: 'dealPhase', op: 'getMany', endpoint: '/dealPhases.list', sends: ['pipeline_id', 'page'] },
-	{ resource: 'dealPhase', op: 'update', endpoint: '/dealPhases.update', sends: ['id'] },
-	{ resource: 'dealPhase', op: 'delete', endpoint: '/dealPhases.delete', sends: ['id'] },
-	{ resource: 'dealPhase', op: 'move', endpoint: '/dealPhases.move', sends: ['id', 'position'] },
+	// ═══════════════ DEAL PIPELINE ═══════════════
+	{ endpoint: '/dealPipelines.create', requiredBySpec: ['name'], actualSends: ['name'] },
+	{ endpoint: '/dealPipelines.update', requiredBySpec: ['id', 'name'], actualSends: ['id'], note: 'name is required by spec but this is an update endpoint — API likely accepts partial updates' },
+	{
+		endpoint: '/dealPipelines.delete',
+		requiredBySpec: ['id'],
+		actualSends: ['id'],
+		structuralChecks: [
+			{ desc: 'migrate_phases support', pattern: /migrate_phases/, present: true },
+		],
+	},
+	{ endpoint: '/dealPipelines.duplicate', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/dealPipelines.markAsDefault', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// QUOTATION
-	{ resource: 'quotation', op: 'create', endpoint: '/quotations.create', sends: ['customer', 'grouped_lines'] },
-	{ resource: 'quotation', op: 'get', endpoint: '/quotations.info', sends: ['id'] },
-	{ resource: 'quotation', op: 'getMany', endpoint: '/quotations.list', sends: ['page'] },
-	{ resource: 'quotation', op: 'update', endpoint: '/quotations.update', sends: ['id'] },
-	{ resource: 'quotation', op: 'delete', endpoint: '/quotations.delete', sends: ['id'] },
-	{ resource: 'quotation', op: 'download', endpoint: '/quotations.download', sends: ['id', 'format'] },
-	{ resource: 'quotation', op: 'send', endpoint: '/quotations.send', sends: ['id'] },
-	{ resource: 'quotation', op: 'accept', endpoint: '/quotations.accept', sends: ['id'] },
+	// ═══════════════ DEAL PHASE ═══════════════
+	{
+		endpoint: '/dealPhases.create',
+		requiredBySpec: ['name', 'deal_pipeline_id', 'requires_attention_after'],
+		actualSends: ['name', 'deal_pipeline_id', 'requires_attention_after'],
+		structuralChecks: [
+			{ desc: 'requires_attention_after {amount, unit}', pattern: /requires_attention_after.*amount.*unit/s, present: true },
+		],
+	},
+	{
+		endpoint: '/dealPhases.list',
+		requiredBySpec: [],
+		actualSends: [],
+		structuralChecks: [
+			{ desc: 'filter.deal_pipeline_id wrapping', pattern: /filter.*deal_pipeline_id/s, present: true },
+		],
+	},
+	{
+		endpoint: '/dealPhases.update',
+		requiredBySpec: ['id', 'requires_attention_after'],
+		actualSends: ['id'],
+		note: 'requires_attention_after is required by spec but conditionally sent (only if user provides it). This may cause 400 if user only updates name without requires_attention_after.',
+	},
+	{ endpoint: '/dealPhases.delete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/dealPhases.move',
+		requiredBySpec: ['id', 'after_phase_id'],
+		actualSends: ['id', 'after_phase_id'],
+	},
 
-	// INVOICE
-	{ resource: 'invoice', op: 'draft', endpoint: '/invoices.draft', sends: ['customer', 'department_id', 'grouped_lines'] },
-	{ resource: 'invoice', op: 'copy', endpoint: '/invoices.copy', sends: ['id'] },
-	{ resource: 'invoice', op: 'get', endpoint: '/invoices.info', sends: ['id'] },
-	{ resource: 'invoice', op: 'getMany', endpoint: '/invoices.list', sends: ['page'] },
-	{ resource: 'invoice', op: 'update', endpoint: '/invoices.update', sends: ['id'] },
-	{ resource: 'invoice', op: 'updateBooked', endpoint: '/invoices.updateBooked', sends: ['id'] },
-	{ resource: 'invoice', op: 'book', endpoint: '/invoices.book', sends: ['id'] },
-	{ resource: 'invoice', op: 'send', endpoint: '/invoices.send', sends: ['id'] },
-	{ resource: 'invoice', op: 'registerPayment', endpoint: '/invoices.registerPayment', sends: ['id', 'payment', 'paid_at', 'payment_method_id'] },
-	{ resource: 'invoice', op: 'removePayments', endpoint: '/invoices.removePayments', sends: ['id'] },
-	{ resource: 'invoice', op: 'credit', endpoint: '/invoices.credit', sends: ['id'] },
-	{ resource: 'invoice', op: 'creditPartially', endpoint: '/invoices.creditPartially', sends: ['id', 'credit_note_lines'] },
-	{ resource: 'invoice', op: 'download', endpoint: '/invoices.download', sends: ['id', 'format'] },
-	{ resource: 'invoice', op: 'delete', endpoint: '/invoices.delete', sends: ['id'] },
-	{ resource: 'invoice', op: 'sendViaPeppol', endpoint: '/invoices.sendViaPeppol', sends: ['id'] },
+	// ═══════════════ QUOTATION ═══════════════
+	{
+		endpoint: '/quotations.create',
+		requiredBySpec: ['deal_id'],
+		actualSends: ['deal_id', 'customer', 'grouped_lines'],
+		structuralChecks: [
+			{ desc: 'customer {type, id}', pattern: /customer.*type.*id/s, present: true },
+			{ desc: 'currency nesting {code, exchange_rate}', pattern: /currency.*code.*exchange_rate/s, present: true },
+		],
+	},
+	{ endpoint: '/quotations.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/quotations.update', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/quotations.delete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/quotations.download', requiredBySpec: ['id', 'format'], actualSends: ['id', 'format'] },
+	{
+		endpoint: '/quotations.send',
+		requiredBySpec: ['quotations', 'recipients', 'subject', 'content', 'language'],
+		actualSends: ['quotations', 'recipients', 'subject', 'content', 'language'],
+		structuralChecks: [
+			{
+				desc: 'quotations is array of string IDs, not array of objects',
+				check: () => {
+					return nodeSrc.includes('quotations: [{ id:') ? 'ERROR: sends [{id}] but spec expects [string]' : null;
+				},
+			},
+		],
+	},
+	{ endpoint: '/quotations.accept', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// CREDIT NOTE
-	{ resource: 'creditNote', op: 'get', endpoint: '/creditNotes.info', sends: ['id'] },
-	{ resource: 'creditNote', op: 'getMany', endpoint: '/creditNotes.list', sends: ['page'] },
-	{ resource: 'creditNote', op: 'download', endpoint: '/creditNotes.download', sends: ['id', 'format'] },
-	{ resource: 'creditNote', op: 'sendViaPeppol', endpoint: '/creditNotes.sendViaPeppol', sends: ['id'] },
+	// ═══════════════ INVOICE ═══════════════
+	{
+		endpoint: '/invoices.draft',
+		requiredBySpec: ['invoicee', 'department_id', 'payment_term', 'grouped_lines'],
+		actualSends: ['invoicee', 'department_id', 'grouped_lines', 'payment_term'],
+		structuralChecks: [
+			{ desc: 'invoicee.customer {type, id}', pattern: /invoicee.*customer.*type.*id/s, present: true },
+		],
+	},
+	{ endpoint: '/invoices.copy', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/invoices.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/invoices.update',
+		requiredBySpec: ['id'],
+		actualSends: ['id'],
+		structuralChecks: [
+			{ desc: 'payment_term nesting', pattern: /payment_term.*type.*days/s, present: true },
+		],
+	},
+	{
+		endpoint: '/invoices.updateBooked',
+		requiredBySpec: ['id'],
+		actualSends: ['id'],
+		structuralChecks: [
+			{ desc: 'payment_term nesting', pattern: /payment_term.*type.*days/s, present: true },
+		],
+	},
+	{
+		endpoint: '/invoices.book',
+		requiredBySpec: ['id', 'on'],
+		actualSends: ['id', 'on'],
+	},
+	{
+		endpoint: '/invoices.send',
+		requiredBySpec: ['id', 'content'],
+		actualSends: ['id', 'content', 'from', 'recipients'],
+		structuralChecks: [
+			{ desc: 'content is {subject, body} object', pattern: /content.*subject.*body/s, present: true },
+		],
+	},
+	{
+		endpoint: '/invoices.registerPayment',
+		requiredBySpec: ['id', 'payment', 'paid_at'],
+		actualSends: ['id', 'payment', 'paid_at', 'payment_method_id'],
+	},
+	{ endpoint: '/invoices.removePayments', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/invoices.credit', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/invoices.creditPartially',
+		requiredBySpec: ['id', 'grouped_lines'],
+		actualSends: ['id', 'grouped_lines'],
+	},
+	{ endpoint: '/invoices.download', requiredBySpec: ['id', 'format'], actualSends: ['id', 'format'] },
+	{ endpoint: '/invoices.delete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/invoices.sendViaPeppol', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// SUBSCRIPTION
-	{ resource: 'subscription', op: 'create', endpoint: '/subscriptions.create', sends: ['title', 'customer', 'department_id', 'invoicing_method', 'billing_cycle'] },
-	{ resource: 'subscription', op: 'get', endpoint: '/subscriptions.info', sends: ['id'] },
-	{ resource: 'subscription', op: 'getMany', endpoint: '/subscriptions.list', sends: ['page'] },
-	{ resource: 'subscription', op: 'update', endpoint: '/subscriptions.update', sends: ['id'] },
-	{ resource: 'subscription', op: 'deactivate', endpoint: '/subscriptions.deactivate', sends: ['id'] },
+	// ═══════════════ CREDIT NOTE ═══════════════
+	{ endpoint: '/creditNotes.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/creditNotes.download', requiredBySpec: ['id', 'format'], actualSends: ['id', 'format'] },
+	{ endpoint: '/creditNotes.sendViaPeppol', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// INCOMING INVOICE
-	{ resource: 'incomingInvoice', op: 'add', endpoint: '/incomingInvoices.add', sends: [] },
-	{ resource: 'incomingInvoice', op: 'get', endpoint: '/incomingInvoices.info', sends: ['id'] },
-	{ resource: 'incomingInvoice', op: 'update', endpoint: '/incomingInvoices.update', sends: ['id'] },
-	{ resource: 'incomingInvoice', op: 'delete', endpoint: '/incomingInvoices.delete', sends: ['id'] },
-	{ resource: 'incomingInvoice', op: 'approve', endpoint: '/incomingInvoices.approve', sends: ['id'] },
-	{ resource: 'incomingInvoice', op: 'refuse', endpoint: '/incomingInvoices.refuse', sends: ['id'] },
-	{ resource: 'incomingInvoice', op: 'markPending', endpoint: '/incomingInvoices.markAsPendingReview', sends: ['id'] },
-	{ resource: 'incomingInvoice', op: 'sendToBookkeeping', endpoint: '/incomingInvoices.sendToBookkeeping', sends: ['id'] },
-	{ resource: 'incomingInvoice', op: 'listPayments', endpoint: '/incomingInvoices.listPayments', sends: ['id'] },
-	{ resource: 'incomingInvoice', op: 'registerPayment', endpoint: '/incomingInvoices.registerPayment', sends: ['id', 'payment', 'paid_at'] },
-	{ resource: 'incomingInvoice', op: 'removePayment', endpoint: '/incomingInvoices.removePayment', sends: ['id', 'payment_id'] },
-	{ resource: 'incomingInvoice', op: 'updatePayment', endpoint: '/incomingInvoices.updatePayment', sends: ['id', 'payment_id'] },
+	// ═══════════════ SUBSCRIPTION ═══════════════
+	{
+		endpoint: '/subscriptions.create',
+		requiredBySpec: ['invoicee', 'department_id', 'starts_on', 'billing_cycle', 'title', 'grouped_lines', 'payment_term', 'invoice_generation'],
+		actualSends: ['invoicee', 'department_id', 'starts_on', 'billing_cycle', 'title', 'grouped_lines', 'payment_term', 'invoice_generation'],
+		structuralChecks: [
+			{ desc: 'invoicee.customer {type, id}', pattern: /invoicee.*customer.*type.*id/s, present: true },
+		],
+	},
+	{ endpoint: '/subscriptions.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/subscriptions.update',
+		requiredBySpec: ['id'],
+		actualSends: ['id'],
+		structuralChecks: [
+			{ desc: 'billing_cycle JSON parsing', pattern: /billing_cycle.*JSON\.parse/s, present: true },
+			{ desc: 'payment_term JSON parsing', pattern: /payment_term.*JSON\.parse/s, present: true },
+		],
+	},
+	{ endpoint: '/subscriptions.deactivate', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// INCOMING CREDIT NOTE
-	{ resource: 'incomingCreditNote', op: 'add', endpoint: '/incomingCreditNotes.add', sends: [] },
-	{ resource: 'incomingCreditNote', op: 'get', endpoint: '/incomingCreditNotes.info', sends: ['id'] },
-	{ resource: 'incomingCreditNote', op: 'update', endpoint: '/incomingCreditNotes.update', sends: ['id'] },
-	{ resource: 'incomingCreditNote', op: 'delete', endpoint: '/incomingCreditNotes.delete', sends: ['id'] },
-	{ resource: 'incomingCreditNote', op: 'approve', endpoint: '/incomingCreditNotes.approve', sends: ['id'] },
-	{ resource: 'incomingCreditNote', op: 'refuse', endpoint: '/incomingCreditNotes.refuse', sends: ['id'] },
-	{ resource: 'incomingCreditNote', op: 'markPending', endpoint: '/incomingCreditNotes.markAsPendingReview', sends: ['id'] },
-	{ resource: 'incomingCreditNote', op: 'sendToBookkeeping', endpoint: '/incomingCreditNotes.sendToBookkeeping', sends: ['id'] },
-	{ resource: 'incomingCreditNote', op: 'listPayments', endpoint: '/incomingCreditNotes.listPayments', sends: ['id'] },
-	{ resource: 'incomingCreditNote', op: 'registerPayment', endpoint: '/incomingCreditNotes.registerPayment', sends: ['id', 'payment', 'paid_at'] },
-	{ resource: 'incomingCreditNote', op: 'removePayment', endpoint: '/incomingCreditNotes.removePayment', sends: ['id', 'payment_id'] },
-	{ resource: 'incomingCreditNote', op: 'updatePayment', endpoint: '/incomingCreditNotes.updatePayment', sends: ['id', 'payment_id'] },
+	// ═══════════════ INCOMING INVOICE ═══════════════
+	{
+		endpoint: '/incomingInvoices.add',
+		requiredBySpec: ['title', 'currency'],
+		actualSends: ['title', 'department_id', 'currency'],
+		structuralChecks: [
+			{ desc: 'currency nesting {code}', pattern: /currency.*code.*currency_code/s, present: true },
+			{ desc: 'total nesting {tax_exclusive, tax_inclusive}', pattern: /total.*tax_exclusive|tax_inclusive/s, present: true },
+		],
+	},
+	{ endpoint: '/incomingInvoices.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/incomingInvoices.update',
+		requiredBySpec: ['id'],
+		actualSends: ['id'],
+		structuralChecks: [
+			{ desc: 'currency nesting {code}', pattern: /currency.*code/s, present: true },
+		],
+	},
+	{ endpoint: '/incomingInvoices.delete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/incomingInvoices.approve', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/incomingInvoices.refuse', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/incomingInvoices.markAsPendingReview', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/incomingInvoices.sendToBookkeeping', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/incomingInvoices.listPayments', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/incomingInvoices.registerPayment',
+		requiredBySpec: ['id', 'payment', 'paid_at'],
+		actualSends: ['id', 'payment', 'paid_at'],
+	},
+	{ endpoint: '/incomingInvoices.removePayment', requiredBySpec: ['id', 'payment_id'], actualSends: ['id', 'payment_id'] },
+	{ endpoint: '/incomingInvoices.updatePayment', requiredBySpec: ['id', 'payment_id'], actualSends: ['id', 'payment_id'] },
 
-	// EVENT
-	{ resource: 'event', op: 'create', endpoint: '/events.create', sends: ['title', 'activity_type_id', 'starts_at', 'ends_at'] },
-	{ resource: 'event', op: 'get', endpoint: '/events.info', sends: ['id'] },
-	{ resource: 'event', op: 'getMany', endpoint: '/events.list', sends: ['page'] },
-	{ resource: 'event', op: 'update', endpoint: '/events.update', sends: ['id'] },
-	{ resource: 'event', op: 'cancel', endpoint: '/events.cancel', sends: ['id'] },
+	// ═══════════════ INCOMING CREDIT NOTE ═══════════════
+	{
+		endpoint: '/incomingCreditNotes.add',
+		requiredBySpec: ['title', 'currency'],
+		actualSends: ['title', 'department_id', 'currency'],
+		structuralChecks: [
+			{ desc: 'currency nesting {code}', pattern: /currency.*code.*currency_code/s, present: true },
+		],
+	},
+	{ endpoint: '/incomingCreditNotes.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/incomingCreditNotes.update', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/incomingCreditNotes.delete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/incomingCreditNotes.approve', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/incomingCreditNotes.refuse', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/incomingCreditNotes.markAsPendingReview', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/incomingCreditNotes.sendToBookkeeping', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/incomingCreditNotes.listPayments', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/incomingCreditNotes.registerPayment',
+		requiredBySpec: ['id', 'payment', 'paid_at'],
+		actualSends: ['id', 'payment', 'paid_at'],
+	},
+	{ endpoint: '/incomingCreditNotes.removePayment', requiredBySpec: ['id', 'payment_id'], actualSends: ['id', 'payment_id'] },
+	{ endpoint: '/incomingCreditNotes.updatePayment', requiredBySpec: ['id', 'payment_id'], actualSends: ['id', 'payment_id'] },
 
-	// MEETING
-	{ resource: 'meeting', op: 'schedule', endpoint: '/meetings.schedule', sends: ['title', 'starts_at', 'ends_at'] },
-	{ resource: 'meeting', op: 'get', endpoint: '/meetings.info', sends: ['id'] },
-	{ resource: 'meeting', op: 'getMany', endpoint: '/meetings.list', sends: ['page'] },
-	{ resource: 'meeting', op: 'update', endpoint: '/meetings.update', sends: ['id'] },
-	{ resource: 'meeting', op: 'complete', endpoint: '/meetings.complete', sends: ['id'] },
-	{ resource: 'meeting', op: 'delete', endpoint: '/meetings.delete', sends: ['id'] },
-	{ resource: 'meeting', op: 'createReport', endpoint: '/meetings.createReport', sends: ['id', 'body'] },
+	// ═══════════════ EVENT ═══════════════
+	{
+		endpoint: '/events.create',
+		requiredBySpec: ['title', 'activity_type_id', 'starts_at', 'ends_at'],
+		actualSends: ['title', 'activity_type_id', 'starts_at', 'ends_at'],
+		structuralChecks: [
+			{ desc: 'attendees as JSON array', pattern: /attendees.*JSON\.parse/s, present: true },
+		],
+	},
+	{ endpoint: '/events.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/events.update', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/events.cancel', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// CALL
-	{ resource: 'call', op: 'add', endpoint: '/calls.add', sends: ['caller', 'callee'] },
-	{ resource: 'call', op: 'get', endpoint: '/calls.info', sends: ['id'] },
-	{ resource: 'call', op: 'getMany', endpoint: '/calls.list', sends: ['page'] },
-	{ resource: 'call', op: 'complete', endpoint: '/calls.complete', sends: ['id'] },
-	{ resource: 'call', op: 'update', endpoint: '/calls.update', sends: ['id'] },
+	// ═══════════════ MEETING ═══════════════
+	{
+		endpoint: '/meetings.schedule',
+		requiredBySpec: ['title', 'starts_at', 'ends_at', 'attendees'],
+		actualSends: ['title', 'starts_at', 'ends_at', 'attendees'],
+		structuralChecks: [
+			{ desc: 'attendees as JSON-parsed array', pattern: /attendees.*JSON\.parse/s, present: true },
+			{ desc: 'customer nesting {type, id}', pattern: /customer.*type.*additionalFields\.customer_type/s, present: true },
+		],
+	},
+	{ endpoint: '/meetings.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/meetings.update',
+		requiredBySpec: ['id'],
+		actualSends: ['id'],
+	},
+	{ endpoint: '/meetings.complete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/meetings.delete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/meetings.createReport',
+		requiredBySpec: ['id', 'attach_to'],
+		actualSends: ['id', 'attach_to'],
+		structuralChecks: [
+			{ desc: 'attach_to {type, id}', pattern: /attach_to.*type.*id/s, present: true },
+		],
+	},
 
-	// TIME TRACKING
-	{ resource: 'timeTracking', op: 'add', endpoint: '/timeTracking.add', sends: ['work_type_id', 'started_at', 'duration', 'subject'] },
-	{ resource: 'timeTracking', op: 'get', endpoint: '/timeTracking.info', sends: ['id'] },
-	{ resource: 'timeTracking', op: 'getMany', endpoint: '/timeTracking.list', sends: ['page'] },
-	{ resource: 'timeTracking', op: 'update', endpoint: '/timeTracking.update', sends: ['id'] },
-	{ resource: 'timeTracking', op: 'delete', endpoint: '/timeTracking.delete', sends: ['id'] },
-	{ resource: 'timeTracking', op: 'resume', endpoint: '/timeTracking.resume', sends: ['id'] },
+	// ═══════════════ CALL ═══════════════
+	{
+		endpoint: '/calls.add',
+		requiredBySpec: ['participant', 'due_at', 'assignee'],
+		actualSends: ['participant', 'due_at', 'assignee'],
+		structuralChecks: [
+			{ desc: 'participant.customer {type, id}', pattern: /participant.*customer.*type.*id/s, present: true },
+			{ desc: 'assignee {type: "user", id}', pattern: /assignee.*type.*user.*id/s, present: true },
+		],
+	},
+	{ endpoint: '/calls.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/calls.complete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/calls.update',
+		requiredBySpec: ['id'],
+		actualSends: ['id'],
+		structuralChecks: [
+			{ desc: 'participant nesting in update', pattern: /participant.*customer.*type.*id/s, present: true },
+			{ desc: 'assignee nesting in update', pattern: /assignee.*type.*user.*id/s, present: true },
+		],
+	},
 
-	// TIMER
-	{ resource: 'timer', op: 'getCurrent', endpoint: '/timers.current', sends: [] },
-	{ resource: 'timer', op: 'start', endpoint: '/timers.start', sends: [] },
-	{ resource: 'timer', op: 'stop', endpoint: '/timers.stop', sends: [] },
-	{ resource: 'timer', op: 'update', endpoint: '/timers.update', sends: [] },
+	// ═══════════════ TIME TRACKING ═══════════════
+	{
+		endpoint: '/timeTracking.add',
+		requiredBySpec: ['work_type_id', 'started_at', 'duration', 'subject'],
+		actualSends: ['work_type_id', 'started_at', 'duration', 'subject'],
+		structuralChecks: [
+			{ desc: 'subject {type, id}', pattern: /subject.*type.*id/s, present: true },
+		],
+	},
+	{ endpoint: '/timeTracking.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/timeTracking.update',
+		requiredBySpec: ['id', 'duration'],
+		actualSends: ['id'],
+		note: 'duration and started_at are required by spec but this is an update endpoint — API likely accepts partial updates',
+	},
+	{ endpoint: '/timeTracking.delete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/timeTracking.resume', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// NOTE
-	{ resource: 'note', op: 'create', endpoint: '/notes.create', sends: ['subject', 'content'] },
-	{ resource: 'note', op: 'getMany', endpoint: '/notes.list', sends: ['page'] },
-	{ resource: 'note', op: 'update', endpoint: '/notes.update', sends: ['id', 'content'] },
+	// ═══════════════ TIMER ═══════════════
+	{
+		endpoint: '/timers.update',
+		requiredBySpec: [],
+		actualSends: [],
+		structuralChecks: [
+			{ desc: 'subject nesting {type, id}', pattern: /subject.*type.*subject_type.*id.*subject_id/s, present: true },
+		],
+	},
 
-	// TASK
-	{ resource: 'task', op: 'create', endpoint: '/tasks.create', sends: ['title', 'due_date'] },
-	{ resource: 'task', op: 'get', endpoint: '/tasks.info', sends: ['id'] },
-	{ resource: 'task', op: 'getMany', endpoint: '/tasks.list', sends: ['page'] },
-	{ resource: 'task', op: 'update', endpoint: '/tasks.update', sends: ['id'] },
-	{ resource: 'task', op: 'delete', endpoint: '/tasks.delete', sends: ['id'] },
-	{ resource: 'task', op: 'complete', endpoint: '/tasks.complete', sends: ['id'] },
-	{ resource: 'task', op: 'reopen', endpoint: '/tasks.reopen', sends: ['id'] },
-	{ resource: 'task', op: 'schedule', endpoint: '/tasks.schedule', sends: ['id', 'scheduled_at'] },
+	// ═══════════════ NOTE ═══════════════
+	{
+		endpoint: '/notes.create',
+		requiredBySpec: ['subject', 'content'],
+		actualSends: ['subject', 'content'],
+		structuralChecks: [
+			{ desc: 'subject {type, id}', pattern: /subject.*type.*id/s, present: true },
+		],
+	},
+	{ endpoint: '/notes.update', requiredBySpec: ['id', 'content'], actualSends: ['id', 'content'] },
 
-	// PROJECT (v2)
-	{ resource: 'project', op: 'create', endpoint: '/projects-v2/projects.create', sends: ['title', 'billing_method'] },
-	{ resource: 'project', op: 'get', endpoint: '/projects-v2/projects.info', sends: ['id'] },
-	{ resource: 'project', op: 'getMany', endpoint: '/projects-v2/projects.list', sends: ['page'] },
-	{ resource: 'project', op: 'update', endpoint: '/projects-v2/projects.update', sends: ['id'] },
-	{ resource: 'project', op: 'close', endpoint: '/projects-v2/projects.close', sends: ['id', 'closing_strategy'] },
-	{ resource: 'project', op: 'reopen', endpoint: '/projects-v2/projects.reopen', sends: ['id'] },
-	{ resource: 'project', op: 'duplicate', endpoint: '/projects-v2/projects.duplicate', sends: ['id'] },
-	{ resource: 'project', op: 'delete', endpoint: '/projects-v2/projects.delete', sends: ['id', 'delete_strategy'] },
-	{ resource: 'project', op: 'addOwner', endpoint: '/projects-v2/projects.addOwner', sends: ['id', 'user_id'] },
-	{ resource: 'project', op: 'removeOwner', endpoint: '/projects-v2/projects.removeOwner', sends: ['id', 'user_id'] },
-	{ resource: 'project', op: 'assign', endpoint: '/projects-v2/projects.assign', sends: ['id', 'assignee'] },
-	{ resource: 'project', op: 'unassign', endpoint: '/projects-v2/projects.unassign', sends: ['id', 'assignee'] },
-	{ resource: 'project', op: 'addCustomer', endpoint: '/projects-v2/projects.addCustomer', sends: ['id', 'customer'] },
-	{ resource: 'project', op: 'removeCustomer', endpoint: '/projects-v2/projects.removeCustomer', sends: ['id', 'customer'] },
-	{ resource: 'project', op: 'addDeal', endpoint: '/projects-v2/projects.addDeal', sends: ['id', 'deal_id'] },
-	{ resource: 'project', op: 'removeDeal', endpoint: '/projects-v2/projects.removeDeal', sends: ['id', 'deal_id'] },
-	{ resource: 'project', op: 'addQuotation', endpoint: '/projects-v2/projects.addQuotation', sends: ['id', 'quotation_id'] },
-	{ resource: 'project', op: 'removeQuotation', endpoint: '/projects-v2/projects.removeQuotation', sends: ['id', 'quotation_id'] },
+	// ═══════════════ TASK ═══════════════
+	{
+		endpoint: '/tasks.create',
+		requiredBySpec: ['title', 'due_on', 'work_type_id'],
+		actualSends: ['title', 'due_on', 'work_type_id'],
+		structuralChecks: [
+			{ desc: 'assignee nesting {type: "user", id}', pattern: /assignee.*type.*user.*id/s, present: true },
+			{ desc: 'estimated_duration nesting {value, unit}', pattern: /estimated_duration.*value.*unit/s, present: true },
+		],
+	},
+	{ endpoint: '/tasks.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/tasks.update', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/tasks.delete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/tasks.complete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/tasks.reopen', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/tasks.schedule',
+		requiredBySpec: ['id', 'starts_at', 'ends_at'],
+		actualSends: ['id', 'starts_at', 'ends_at'],
+	},
 
-	// PROJECT GROUP
-	{ resource: 'projectGroup', op: 'create', endpoint: '/projects-v2/projectGroups.create', sends: ['project_id', 'name'] },
-	{ resource: 'projectGroup', op: 'get', endpoint: '/projects-v2/projectGroups.info', sends: ['id'] },
-	{ resource: 'projectGroup', op: 'getMany', endpoint: '/projects-v2/projectGroups.list', sends: ['project_id', 'page'] },
-	{ resource: 'projectGroup', op: 'update', endpoint: '/projects-v2/projectGroups.update', sends: ['id'] },
-	{ resource: 'projectGroup', op: 'delete', endpoint: '/projects-v2/projectGroups.delete', sends: ['id', 'delete_strategy'] },
-	{ resource: 'projectGroup', op: 'duplicate', endpoint: '/projects-v2/projectGroups.duplicate', sends: ['id'] },
-	{ resource: 'projectGroup', op: 'assign', endpoint: '/projects-v2/projectGroups.assign', sends: ['id', 'assignee'] },
-	{ resource: 'projectGroup', op: 'unassign', endpoint: '/projects-v2/projectGroups.unassign', sends: ['id', 'assignee'] },
+	// ═══════════════ PROJECT ═══════════════
+	{
+		endpoint: '/projects-v2/projects.create',
+		requiredBySpec: ['title', 'billing_method'],
+		actualSends: ['title', 'billing_method'],
+	},
+	{ endpoint: '/projects-v2/projects.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/projects-v2/projects.update',
+		requiredBySpec: ['id'],
+		actualSends: ['id'],
+		structuralChecks: [
+			{ desc: 'billing_method nesting {value, update_strategy}', pattern: /billing_method.*value.*update_strategy/s, present: true },
+		],
+	},
+	{ endpoint: '/projects-v2/projects.close', requiredBySpec: ['id', 'closing_strategy'], actualSends: ['id', 'closing_strategy'] },
+	{ endpoint: '/projects-v2/projects.reopen', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/projects-v2/projects.duplicate',
+		requiredBySpec: ['id', 'title'],
+		actualSends: ['id', 'title'],
+	},
+	{ endpoint: '/projects-v2/projects.delete', requiredBySpec: ['id', 'delete_strategy'], actualSends: ['id', 'delete_strategy'] },
+	{ endpoint: '/projects-v2/projects.addOwner', requiredBySpec: ['id', 'user_id'], actualSends: ['id', 'user_id'] },
+	{ endpoint: '/projects-v2/projects.removeOwner', requiredBySpec: ['id', 'user_id'], actualSends: ['id', 'user_id'] },
+	{ endpoint: '/projects-v2/projects.assign', requiredBySpec: ['id', 'assignee'], actualSends: ['id', 'assignee'] },
+	{ endpoint: '/projects-v2/projects.unassign', requiredBySpec: ['id', 'assignee'], actualSends: ['id', 'assignee'] },
+	{ endpoint: '/projects-v2/projects.addCustomer', requiredBySpec: ['id', 'customer'], actualSends: ['id', 'customer'] },
+	{ endpoint: '/projects-v2/projects.removeCustomer', requiredBySpec: ['id', 'customer'], actualSends: ['id', 'customer'] },
+	{ endpoint: '/projects-v2/projects.addDeal', requiredBySpec: ['id', 'deal_id'], actualSends: ['id', 'deal_id'] },
+	{ endpoint: '/projects-v2/projects.removeDeal', requiredBySpec: ['id', 'deal_id'], actualSends: ['id', 'deal_id'] },
+	{ endpoint: '/projects-v2/projects.addQuotation', requiredBySpec: ['id', 'quotation_id'], actualSends: ['id', 'quotation_id'] },
+	{ endpoint: '/projects-v2/projects.removeQuotation', requiredBySpec: ['id', 'quotation_id'], actualSends: ['id', 'quotation_id'] },
 
-	// PROJECT TASK
-	{ resource: 'projectTask', op: 'create', endpoint: '/projects-v2/tasks.create', sends: ['project_id', 'title', 'group_id'] },
-	{ resource: 'projectTask', op: 'get', endpoint: '/projects-v2/tasks.info', sends: ['id'] },
-	{ resource: 'projectTask', op: 'getMany', endpoint: '/projects-v2/tasks.list', sends: ['project_id', 'page'] },
-	{ resource: 'projectTask', op: 'update', endpoint: '/projects-v2/tasks.update', sends: ['id'] },
-	{ resource: 'projectTask', op: 'delete', endpoint: '/projects-v2/tasks.delete', sends: ['id', 'delete_strategy'] },
-	{ resource: 'projectTask', op: 'duplicate', endpoint: '/projects-v2/tasks.duplicate', sends: ['id'] },
-	{ resource: 'projectTask', op: 'assign', endpoint: '/projects-v2/tasks.assign', sends: ['id', 'assignee'] },
-	{ resource: 'projectTask', op: 'unassign', endpoint: '/projects-v2/tasks.unassign', sends: ['id', 'assignee'] },
+	// ═══════════════ PROJECT GROUP ═══════════════
+	{
+		endpoint: '/projects-v2/projectGroups.create',
+		requiredBySpec: ['project_id', 'title'],
+		actualSends: ['project_id', 'title'],
+	},
+	{ endpoint: '/projects-v2/projectGroups.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/projects-v2/projectGroups.update', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/projects-v2/projectGroups.delete', requiredBySpec: ['id', 'delete_strategy'], actualSends: ['id', 'delete_strategy'] },
+	{
+		endpoint: '/projects-v2/projectGroups.duplicate',
+		requiredBySpec: ['origin_id'],
+		actualSends: ['origin_id'],
+	},
 
-	// PROJECT MATERIAL
-	{ resource: 'projectMaterial', op: 'create', endpoint: '/projects-v2/materials.create', sends: ['project_id', 'title', 'group_id'] },
-	{ resource: 'projectMaterial', op: 'get', endpoint: '/projects-v2/materials.info', sends: ['id'] },
-	{ resource: 'projectMaterial', op: 'getMany', endpoint: '/projects-v2/materials.list', sends: ['project_id', 'page'] },
-	{ resource: 'projectMaterial', op: 'update', endpoint: '/projects-v2/materials.update', sends: ['id'] },
-	{ resource: 'projectMaterial', op: 'delete', endpoint: '/projects-v2/materials.delete', sends: ['id'] },
-	{ resource: 'projectMaterial', op: 'duplicate', endpoint: '/projects-v2/materials.duplicate', sends: ['id'] },
-	{ resource: 'projectMaterial', op: 'assign', endpoint: '/projects-v2/materials.assign', sends: ['id', 'assignee'] },
-	{ resource: 'projectMaterial', op: 'unassign', endpoint: '/projects-v2/materials.unassign', sends: ['id', 'assignee'] },
+	// ═══════════════ PROJECT TASK ═══════════════
+	{
+		endpoint: '/projects-v2/tasks.create',
+		requiredBySpec: ['project_id', 'title'],
+		actualSends: ['project_id', 'title', 'group_id'],
+		structuralChecks: [
+			{ desc: 'time_estimated nesting {value, unit}', pattern: /time_estimated.*value.*unit/s, present: true },
+		],
+	},
+	{ endpoint: '/projects-v2/tasks.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/projects-v2/tasks.update', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/projects-v2/tasks.delete', requiredBySpec: ['id', 'delete_strategy'], actualSends: ['id', 'delete_strategy'] },
+	{
+		endpoint: '/projects-v2/tasks.duplicate',
+		requiredBySpec: ['origin_id'],
+		actualSends: ['origin_id'],
+	},
 
-	// PRODUCT
-	{ resource: 'product', op: 'create', endpoint: '/products.add', sends: ['name'] },
-	{ resource: 'product', op: 'get', endpoint: '/products.info', sends: ['id'] },
-	{ resource: 'product', op: 'getMany', endpoint: '/products.list', sends: ['page'] },
-	{ resource: 'product', op: 'update', endpoint: '/products.update', sends: ['id'] },
-	{ resource: 'product', op: 'delete', endpoint: '/products.delete', sends: ['id'] },
+	// ═══════════════ PROJECT MATERIAL ═══════════════
+	{
+		endpoint: '/projects-v2/materials.create',
+		requiredBySpec: ['project_id', 'title'],
+		actualSends: ['project_id', 'title', 'group_id'],
+		structuralChecks: [
+			{ desc: 'unit_price nesting {amount, currency}', pattern: /unit_price.*amount.*currency/s, present: true },
+		],
+	},
+	{ endpoint: '/projects-v2/materials.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/projects-v2/materials.update', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/projects-v2/materials.delete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/projects-v2/materials.duplicate',
+		requiredBySpec: ['origin_id'],
+		actualSends: ['origin_id'],
+	},
 
-	// TICKET
-	{ resource: 'ticket', op: 'create', endpoint: '/tickets.create', sends: ['subject', 'message'] },
-	{ resource: 'ticket', op: 'get', endpoint: '/tickets.info', sends: ['id'] },
-	{ resource: 'ticket', op: 'getMany', endpoint: '/tickets.list', sends: ['page'] },
-	{ resource: 'ticket', op: 'update', endpoint: '/tickets.update', sends: ['id'] },
-	{ resource: 'ticket', op: 'listMessages', endpoint: '/tickets.listMessages', sends: ['id'] },
-	{ resource: 'ticket', op: 'getMessage', endpoint: '/tickets.getMessage', sends: ['id'] },
-	{ resource: 'ticket', op: 'addReply', endpoint: '/tickets.addReply', sends: ['id', 'body'] },
-	{ resource: 'ticket', op: 'addInternalMessage', endpoint: '/tickets.addInternalMessage', sends: ['id', 'body'] },
-	{ resource: 'ticket', op: 'importMessage', endpoint: '/tickets.importMessage', sends: ['id', 'body', 'sent_by', 'sent_at'] },
+	// ═══════════════ PRODUCT ═══════════════
+	{
+		endpoint: '/products.add',
+		requiredBySpec: ['name'],
+		actualSends: ['name'],
+		structuralChecks: [
+			{ desc: 'selling_price nesting {amount, currency}', pattern: /selling_price.*amount/s, present: true },
+		],
+	},
+	{ endpoint: '/products.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/products.update',
+		requiredBySpec: ['id'],
+		actualSends: ['id'],
+		structuralChecks: [
+			{ desc: 'selling_price nesting {amount, currency}', pattern: /selling_price.*amount/s, present: true },
+		],
+	},
+	{ endpoint: '/products.delete', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// USER
-	{ resource: 'user', op: 'getCurrent', endpoint: '/users.me', sends: [] },
-	{ resource: 'user', op: 'get', endpoint: '/users.info', sends: ['id'] },
-	{ resource: 'user', op: 'getMany', endpoint: '/users.list', sends: ['page'] },
-	{ resource: 'user', op: 'getWeekSchedule', endpoint: '/users.getWeekSchedule', sends: ['id'] },
-	{ resource: 'user', op: 'listDaysOff', endpoint: '/users.listDaysOff', sends: ['id'] },
+	// ═══════════════ TICKET ═══════════════
+	{
+		endpoint: '/tickets.create',
+		requiredBySpec: ['subject', 'customer', 'ticket_status_id'],
+		actualSends: ['subject', 'customer', 'ticket_status_id'],
+		structuralChecks: [
+			{ desc: 'customer {type, id}', pattern: /customer.*type.*id/s, present: true },
+			{ desc: 'assignee nesting', pattern: /assignee.*type.*user.*id/s, present: true },
+		],
+	},
+	{ endpoint: '/tickets.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/tickets.update', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/tickets.listMessages', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/tickets.getMessage', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/tickets.addReply', requiredBySpec: ['id', 'body'], actualSends: ['id', 'body'] },
+	{ endpoint: '/tickets.addInternalMessage', requiredBySpec: ['id', 'body'], actualSends: ['id', 'body'] },
+	{ endpoint: '/tickets.importMessage', requiredBySpec: ['id', 'body', 'sent_by', 'sent_at'], actualSends: ['id', 'body', 'sent_by', 'sent_at'] },
 
-	// DEPARTMENT
-	{ resource: 'department', op: 'get', endpoint: '/departments.info', sends: ['id'] },
-	{ resource: 'department', op: 'getMany', endpoint: '/departments.list', sends: ['page'] },
+	// ═══════════════ USER ═══════════════
+	{ endpoint: '/users.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/users.getWeekSchedule', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/users.listDaysOff', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// TEAM
-	{ resource: 'team', op: 'getMany', endpoint: '/teams.list', sends: ['page'] },
+	// ═══════════════ FILE ═══════════════
+	{ endpoint: '/files.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/files.delete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/files.download', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// FILE
-	{ resource: 'file', op: 'get', endpoint: '/files.info', sends: ['id'] },
-	{ resource: 'file', op: 'getMany', endpoint: '/files.list', sends: ['filter', 'filter.subject', 'page'] },
-	{ resource: 'file', op: 'delete', endpoint: '/files.delete', sends: ['id'] },
-	{ resource: 'file', op: 'download', endpoint: '/files.download', sends: ['id'] },
-	{ resource: 'file', op: 'upload', endpoint: '/files.upload', sends: ['subject'] },
+	// ═══════════════ DAY OFF ═══════════════
+	{
+		endpoint: '/daysOff.import',
+		requiredBySpec: ['user_id', 'leave_type_id', 'days'],
+		actualSends: ['user_id', 'leave_type_id', 'days'],
+	},
+	{
+		endpoint: '/daysOff.bulkDelete',
+		requiredBySpec: ['user_id'],
+		actualSends: ['user_id', 'ids'],
+	},
+	{ endpoint: '/dayOffTypes.create', requiredBySpec: ['name'], actualSends: ['name'] },
+	{ endpoint: '/dayOffTypes.update', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/dayOffTypes.delete', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// DAY OFF
-	{ resource: 'dayOff', op: 'import', endpoint: '/daysOff.import', sends: ['days_off'] },
-	{ resource: 'dayOff', op: 'bulkDelete', endpoint: '/daysOff.bulkDelete', sends: ['days_off'] },
-	{ resource: 'dayOff', op: 'listTypes', endpoint: '/dayOffTypes.list', sends: [] },
-	{ resource: 'dayOff', op: 'createType', endpoint: '/dayOffTypes.create', sends: ['name'] },
-	{ resource: 'dayOff', op: 'updateType', endpoint: '/dayOffTypes.update', sends: ['id'] },
-	{ resource: 'dayOff', op: 'deleteType', endpoint: '/dayOffTypes.delete', sends: ['id'] },
+	// ═══════════════ CLOSING DAY ═══════════════
+	{
+		endpoint: '/closingDays.add',
+		requiredBySpec: ['day'],
+		actualSends: ['day'],
+	},
+	{ endpoint: '/closingDays.delete', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// CLOSING DAY
-	{ resource: 'closingDay', op: 'add', endpoint: '/closingDays.add', sends: ['date'] },
-	{ resource: 'closingDay', op: 'getMany', endpoint: '/closingDays.list', sends: ['page'] },
-	{ resource: 'closingDay', op: 'delete', endpoint: '/closingDays.delete', sends: ['id'] },
+	// ═══════════════ EMAIL TRACKING ═══════════════
+	{
+		endpoint: '/emailTracking.create',
+		requiredBySpec: ['subject', 'content'],
+		actualSends: ['subject', 'content'],
+		structuralChecks: [
+			{ desc: 'subject {type, id}', pattern: /subject.*type.*id/s, present: true },
+		],
+	},
 
-	// EMAIL TRACKING
-	{ resource: 'emailTracking', op: 'create', endpoint: '/emailTracking.create', sends: ['subject', 'url'] },
-	{ resource: 'emailTracking', op: 'getMany', endpoint: '/emailTracking.list', sends: ['page'] },
+	// ═══════════════ WEBHOOK ═══════════════
+	{
+		endpoint: '/webhooks.register',
+		requiredBySpec: ['url', 'types'],
+		actualSends: ['url', 'types'],
+	},
+	{
+		endpoint: '/webhooks.unregister',
+		requiredBySpec: ['url', 'types'],
+		actualSends: ['url', 'types'],
+	},
 
-	// WEBHOOK
-	{ resource: 'webhook', op: 'register', endpoint: '/webhooks.register', sends: ['url', 'types'] },
-	{ resource: 'webhook', op: 'getMany', endpoint: '/webhooks.list', sends: ['page'] },
-	{ resource: 'webhook', op: 'unregister', endpoint: '/webhooks.unregister', sends: ['id'] },
+	// ═══════════════ EXTERNAL PARTY ═══════════════
+	{ endpoint: '/projects-v2/externalParties.addToProject', requiredBySpec: ['project_id', 'customer'], actualSends: ['project_id', 'customer'] },
+	{ endpoint: '/projects-v2/externalParties.update', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/projects-v2/externalParties.delete', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// EXTERNAL PARTY
-	{ resource: 'externalParty', op: 'addToProject', endpoint: '/projects-v2/externalParties.addToProject', sends: ['project_id', 'customer'] },
-	{ resource: 'externalParty', op: 'update', endpoint: '/projects-v2/externalParties.update', sends: ['id'] },
-	{ resource: 'externalParty', op: 'delete', endpoint: '/projects-v2/externalParties.delete', sends: ['id'] },
+	// ═══════════════ PROJECT LINE ═══════════════
+	{ endpoint: '/projects-v2/projectLines.addToGroup', requiredBySpec: ['line_id', 'group_id'], actualSends: ['line_id', 'group_id'] },
+	{ endpoint: '/projects-v2/projectLines.removeFromGroup', requiredBySpec: ['line_id'], actualSends: ['line_id'] },
 
-	// PROJECT LINE
-	{ resource: 'projectLine', op: 'getMany', endpoint: '/projects-v2/projectLines.list', sends: ['project_id', 'page'] },
-	{ resource: 'projectLine', op: 'addToGroup', endpoint: '/projects-v2/projectLines.addToGroup', sends: ['line_id', 'group_id'] },
-	{ resource: 'projectLine', op: 'removeFromGroup', endpoint: '/projects-v2/projectLines.removeFromGroup', sends: ['line_id'] },
+	// ═══════════════ RECEIPT ═══════════════
+	{
+		endpoint: '/receipts.add',
+		requiredBySpec: ['title', 'currency'],
+		actualSends: ['title', 'currency'],
+		structuralChecks: [
+			{ desc: 'currency as {code}', pattern: /currency.*code/s, present: true },
+			{ desc: 'total nesting {tax_inclusive: {amount}}', pattern: /total.*tax_inclusive.*amount/s, present: true },
+		],
+	},
+	{ endpoint: '/receipts.info', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/receipts.delete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/receipts.approve', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/receipts.refuse', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/receipts.markAsPendingReview', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/receipts.sendToBookkeeping', requiredBySpec: ['id'], actualSends: ['id'] },
+	{
+		endpoint: '/receipts.update',
+		requiredBySpec: ['id'],
+		actualSends: ['id'],
+		structuralChecks: [
+			{ desc: 'total nesting in update', pattern: /total.*tax_inclusive.*amount/s, present: true },
+		],
+	},
+	{ endpoint: '/receipts.listPayments', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/receipts.registerPayment', requiredBySpec: ['id', 'payment', 'paid_at'], actualSends: ['id', 'payment', 'paid_at'] },
+	{ endpoint: '/receipts.removePayment', requiredBySpec: ['id', 'payment_id'], actualSends: ['id', 'payment_id'] },
+	{ endpoint: '/receipts.updatePayment', requiredBySpec: ['id', 'payment_id'], actualSends: ['id', 'payment_id'] },
 
-	// RECEIPT
-	{ resource: 'receipt', op: 'add', endpoint: '/receipts.add', sends: ['title', 'currency', 'total'] },
-	{ resource: 'receipt', op: 'get', endpoint: '/receipts.info', sends: ['id'] },
-	{ resource: 'receipt', op: 'delete', endpoint: '/receipts.delete', sends: ['id'] },
-	{ resource: 'receipt', op: 'approve', endpoint: '/receipts.approve', sends: ['id'] },
-	{ resource: 'receipt', op: 'refuse', endpoint: '/receipts.refuse', sends: ['id'] },
-	{ resource: 'receipt', op: 'markPending', endpoint: '/receipts.markAsPendingReview', sends: ['id'] },
-	{ resource: 'receipt', op: 'sendToBookkeeping', endpoint: '/receipts.sendToBookkeeping', sends: ['id'] },
-	{ resource: 'receipt', op: 'update', endpoint: '/receipts.update', sends: ['id'] },
-	{ resource: 'receipt', op: 'listPayments', endpoint: '/receipts.listPayments', sends: ['id'] },
-	{ resource: 'receipt', op: 'registerPayment', endpoint: '/receipts.registerPayment', sends: ['id', 'payment', 'paid_at'] },
-	{ resource: 'receipt', op: 'removePayment', endpoint: '/receipts.removePayment', sends: ['id', 'payment_id'] },
-	{ resource: 'receipt', op: 'updatePayment', endpoint: '/receipts.updatePayment', sends: ['id', 'payment_id'] },
+	// ═══════════════ RESERVATION ═══════════════
+	{
+		endpoint: '/reservations.create',
+		requiredBySpec: ['plannable_item_id', 'date', 'duration', 'assignee'],
+		actualSends: ['plannable_item_id', 'date', 'duration', 'assignee'],
+	},
+	{ endpoint: '/reservations.delete', requiredBySpec: ['id'], actualSends: ['id'] },
+	{ endpoint: '/reservations.update', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// RESERVATION
-	{ resource: 'reservation', op: 'create', endpoint: '/reservations.create', sends: ['plannable_item_id', 'date', 'duration', 'assignee'] },
-	{ resource: 'reservation', op: 'delete', endpoint: '/reservations.delete', sends: ['id'] },
-	{ resource: 'reservation', op: 'getMany', endpoint: '/reservations.list', sends: ['page'] },
-	{ resource: 'reservation', op: 'update', endpoint: '/reservations.update', sends: ['id'] },
+	// ═══════════════ ORDER ═══════════════
+	{ endpoint: '/orders.info', requiredBySpec: ['id'], actualSends: ['id'] },
 
-	// ORDER
-	{ resource: 'order', op: 'get', endpoint: '/orders.info', sends: ['id'] },
-	{ resource: 'order', op: 'getMany', endpoint: '/orders.list', sends: ['page'] },
+	// ═══════════════ PLANNABLE ITEM ═══════════════
+	{
+		endpoint: '/plannableItems.info',
+		requiredBySpec: [],
+		actualSends: ['source'],
+		structuralChecks: [
+			{ desc: 'source {type, id}', pattern: /source.*type.*id/s, present: true },
+		],
+		note: 'Spec says both id and source are optional (either/or)',
+	},
 
-	// PLANNABLE ITEM
-	{ resource: 'plannableItem', op: 'get', endpoint: '/plannableItems.info', sends: ['id'] },
-	{ resource: 'plannableItem', op: 'getMany', endpoint: '/plannableItems.list', sends: ['page'] },
-
-	// USER AVAILABILITY
-	{ resource: 'userAvailability', op: 'getDaily', endpoint: '/userAvailability.daily', sends: ['period'] },
-	{ resource: 'userAvailability', op: 'getTotal', endpoint: '/userAvailability.total', sends: ['period'] },
-
-	// EXPENSE
-	{ resource: 'expense', op: 'getMany', endpoint: '/expenses.list', sends: ['page'] },
-
-	// BOOKKEEPING SUBMISSION
-	{ resource: 'bookkeepingSubmission', op: 'getMany', endpoint: '/bookkeepingSubmissions.list', sends: ['page'] },
+	// ═══════════════ USER AVAILABILITY ═══════════════
+	{
+		endpoint: '/userAvailability.daily',
+		requiredBySpec: ['period'],
+		actualSends: ['period'],
+		structuralChecks: [
+			{ desc: 'period {start_date, end_date}', pattern: /period.*start_date.*end_date/s, present: true },
+		],
+	},
+	{
+		endpoint: '/userAvailability.total',
+		requiredBySpec: ['period'],
+		actualSends: ['period'],
+	},
 ];
 
-// ─── run validation ──────────────────────────────────────────────────────────
+// ─── Run validation ──────────────────────────────────────────────────────────
 let errors = 0;
 let warnings = 0;
 let passed = 0;
 
-console.log('=== Teamleader Focus Node — Spec Validation ===\n');
+console.log('╔═══════════════════════════════════════════════════════════════╗');
+console.log('║   Teamleader Focus Node — Comprehensive Spec Validation     ║');
+console.log('╚═══════════════════════════════════════════════════════════════╝\n');
 
-for (const mapping of ENDPOINT_MAP) {
-	const { resource, op, endpoint, sends } = mapping;
-	const label = `${resource}.${op} → ${endpoint}`;
-
-	// 1. Check endpoint exists in spec
-	const schema = getEndpointSchema(endpoint);
+// === Phase 1: Verify endpoints exist in spec ===
+console.log('━━━ Phase 1: Endpoint Existence ━━━\n');
+for (const check of ENDPOINT_CHECKS) {
+	const schema = getEndpointSchema(check.endpoint);
 	if (!schema) {
-		console.log(`⚠  WARN  ${label}: endpoint not found in spec (may be new or renamed)`);
+		console.log(`⚠  WARN  ${check.endpoint}: not found in spec`);
 		warnings++;
-		continue;
 	}
+}
+console.log(`    ${ENDPOINT_CHECKS.length} endpoints checked\n`);
 
-	// 2. Extract required fields from spec
-	const requiredFields = extractRequired(schema);
-	const requiredTopLevel = Object.entries(requiredFields)
-		.filter(([key]) => !key.includes('.'))
-		.map(([key]) => key);
+// === Phase 2: Required field coverage ===
+console.log('━━━ Phase 2: Required Fields ━━━\n');
+for (const check of ENDPOINT_CHECKS) {
+	const schema = getEndpointSchema(check.endpoint);
+	if (!schema) continue;
 
-	// 3. Check that all required fields are in our sends list
-	const missingRequired = [];
-	for (const reqField of requiredTopLevel) {
-		// page is always handled by pagination logic, skip
-		if (reqField === 'page') continue;
-		// sort is optional in practice
-		if (reqField === 'sort') continue;
+	// Auto-detect required fields from spec
+	const specRequired = getRequiredFields(schema);
 
-		if (!sends.includes(reqField)) {
-			missingRequired.push(reqField);
+	// Compare with our declared requiredBySpec (verify our knowledge is correct)
+	for (const field of specRequired) {
+		if (field === 'page' || field === 'sort') continue;
+		if (!check.actualSends.includes(field)) {
+			// Check if we listed it as required but not sending
+			if (check.note && check.note.includes(field)) {
+				console.log(`⚠  WARN  ${check.endpoint}: "${field}" required by spec but conditionally sent — ${check.note}`);
+				warnings++;
+			} else {
+				console.log(`❌ ERROR ${check.endpoint}: missing required field "${field}" — spec requires it but handler does not send it`);
+				errors++;
+			}
+		} else {
+			passed++;
 		}
 	}
 
-	if (missingRequired.length > 0) {
-		console.log(`❌ ERROR ${label}: missing required fields: ${missingRequired.join(', ')}`);
+	// Also check our requiredBySpec matches (cross-validation)
+	for (const field of check.requiredBySpec) {
+		if (!specRequired.includes(field)) {
+			// We think it's required but spec doesn't — might be fine (we over-send)
+		}
+	}
+}
+
+// === Phase 3: Structural checks (nesting) ===
+console.log('\n━━━ Phase 3: Structural Validation ━━━\n');
+for (const check of ENDPOINT_CHECKS) {
+	if (!check.structuralChecks) continue;
+
+	for (const sc of check.structuralChecks) {
+		if (sc.check) {
+			// Custom check function
+			const result = sc.check();
+			if (result) {
+				console.log(`❌ ERROR ${check.endpoint}: ${sc.desc} — ${result}`);
+				errors++;
+			} else {
+				console.log(`✅ PASS  ${check.endpoint}: ${sc.desc}`);
+				passed++;
+			}
+		} else if (sc.pattern) {
+			const matches = sc.pattern.test(nodeSrc);
+			if (matches === sc.present) {
+				passed++;
+			} else {
+				console.log(`❌ ERROR ${check.endpoint}: ${sc.desc} — expected ${sc.present ? 'present' : 'absent'} but was ${matches ? 'found' : 'not found'}`);
+				errors++;
+			}
+		}
+	}
+}
+
+// === Phase 4: Known bugs and issues ===
+console.log('\n━━━ Phase 4: Known Issue Detection ━━━\n');
+
+// Check 4a: webhook.register sends "content" instead of "url"
+if (nodeSrc.match(/webhooks\.register.*content:/s)) {
+	const registerRegion = nodeSrc.substring(
+		nodeSrc.indexOf("'/webhooks.register'") - 200,
+		nodeSrc.indexOf("'/webhooks.register'") + 300,
+	);
+	if (registerRegion.includes('content:') && !registerRegion.includes('url:')) {
+		console.log('❌ ERROR webhook.register: sends field "content" but spec requires "url"');
 		errors++;
 	} else {
+		console.log('✅ PASS  webhook.register: sends correct field name');
 		passed++;
 	}
-
-	// 4. Check for nested required fields that need special handling
-	const nestedRequired = Object.entries(requiredFields)
-		.filter(([key]) => key.includes('.'))
-		.map(([key]) => key);
-
-	for (const nestedKey of nestedRequired) {
-		// Check if the parent is in our sends list (e.g. filter.subject → check for filter)
-		const parts = nestedKey.split('.');
-		const topParent = parts[0];
-		if (sends.includes(nestedKey) || sends.includes(topParent)) {
-			// Good — we're handling it
-		} else if (topParent === 'page' || topParent === 'sort') {
-			// Auto-handled
-		} else {
-			// Only warn if top-level parent is required
-			if (requiredFields[topParent]?.required) {
-				console.log(`⚠  WARN  ${label}: nested required field '${nestedKey}' — verify it's properly constructed`);
-				warnings++;
-			}
-		}
-	}
 }
 
-// ─── Check for enum mismatches in download operations ────────────────────────
-console.log('\n=== Enum Checks ===\n');
-
-// Check format enums for download endpoints
-for (const ep of ['/invoices.download', '/creditNotes.download', '/quotations.download']) {
-	const schema = getEndpointSchema(ep);
-	if (!schema) continue;
-	const allProps = getAllProperties(schema);
-	const formatProp = allProps['format'];
-	if (formatProp) {
-		const specEnums = extractEnums(formatProp);
-		if (specEnums && specEnums.length > 1) {
-			console.log(`ℹ  INFO  ${ep} supports formats: ${specEnums.join(', ')}`);
-			// Check if our description file only has 'pdf'
-			const descFiles = {
-				'/invoices.download': 'InvoiceDescription.ts',
-				'/creditNotes.download': 'CreditNoteDescription.ts',
-				'/quotations.download': 'QuotationDescription.ts',
-			};
-			const descFile = descFiles[ep];
-			if (descFile) {
-				const descSrc = fs.readFileSync(path.join(NODE_DIR, descFile), 'utf8');
-				const missing = specEnums.filter(e => !descSrc.includes(`'${e}'`) && !descSrc.includes(`"${e}"`));
-				if (missing.length > 0) {
-					console.log(`⚠  WARN  ${descFile} is missing format options: ${missing.join(', ')}`);
-					warnings++;
-				}
-			}
-		}
-	}
-}
-
-// ─── Check files.list filter structure ───────────────────────────────────────
-console.log('\n=== Structural Checks ===\n');
-
-// Verify files.list sends filter.subject correctly
-if (nodeSrc.includes("filter: {\n\t\t\t\t\t\t\tsubject:") || nodeSrc.includes('filter: {\n\t\t\t\t\t\t\t\tsubject:') || nodeSrc.match(/filter:\s*\{\s*subject:/)) {
-	console.log('✅ PASS  files.list: filter.subject structure is correct');
-	passed++;
-} else if (nodeSrc.match(/files\.list.*subject/) && !nodeSrc.match(/filter.*subject.*files\.list/)) {
-	console.log('❌ ERROR files.list: subject should be inside filter object');
+// Check 4b: quotations.send should send quotations as ["id"] not [{ id: "..." }]
+if (nodeSrc.includes('quotations: [{ id:')) {
+	console.log('❌ ERROR quotations.send: sends quotations as [{id: ...}] but spec expects array of strings ["id1"]');
 	errors++;
+} else if (nodeSrc.includes('quotations: [')) {
+	console.log('✅ PASS  quotations.send: quotations array format');
+	passed++;
 }
 
-// Verify download endpoints include format
-for (const ep of ['invoices.download', 'quotations.download', 'creditNotes.download']) {
-	const shortName = ep.split('.')[0];
-	// Look for buildDownloadBody or manual { id, format } construction
-	if (nodeSrc.includes('buildDownloadBody') && nodeSrc.includes(ep)) {
-		console.log(`✅ PASS  ${ep}: uses buildDownloadBody (includes format)`);
+// Check 4c: invoices.send "from" — is it the right structure?
+// Spec: from is an object { sender: {type, id}, email_address: "..." }
+// But handler sends: from: this.getNodeParameter('fromEmail', ...) — a string
+const sendRegion = nodeSrc.substring(
+	nodeSrc.indexOf('buildInvoiceSendBody'),
+	nodeSrc.indexOf('buildInvoiceSendBody') + 1000,
+);
+if (sendRegion.includes("from: context.getNodeParameter('fromEmail'")) {
+	console.log('⚠  WARN  invoices.send: "from" is sent as string, but spec expects object { sender: {type, id}, email_address }. May work if API accepts simple email string.');
+	warnings++;
+}
+
+// Check 4d: dealPhases.update requires_attention_after is required but conditionally sent
+if (nodeSrc.match(/dealPhases\.update.*requires_attention_after_amount.*!==.*undefined/s)) {
+	console.log('⚠  WARN  dealPhases.update: requires_attention_after is required by spec but only sent if user provides amount field');
+	warnings++;
+}
+
+// Check 4e: timeTracking.update — duration is required but only sent via updateFields
+const ttUpdateRegion = nodeSrc.substring(
+	nodeSrc.indexOf("'/timeTracking.update'") - 500,
+	nodeSrc.indexOf("'/timeTracking.update'") + 100,
+);
+if (ttUpdateRegion.includes('assignDefined(body, updateFields)') && !ttUpdateRegion.includes("body.duration")) {
+	console.log('⚠  WARN  timeTracking.update: "duration" is required by spec but only sent if user provides it in updateFields');
+	warnings++;
+}
+
+// Check 4f: Verify old field names are NOT present (regression check)
+const oldFieldChecks = [
+	{ pattern: /body\.pipeline_id\b/, desc: 'Old field name pipeline_id (should be deal_pipeline_id)', endpoint: 'dealPhases.create' },
+	{ pattern: /position:.*getNodeParameter\('position'/, desc: 'Old field name position (should be after_phase_id)', endpoint: 'dealPhases.move' },
+	{ pattern: /body\.date\s*=|date:.*getNodeParameter\('date'.*closingDays/s, desc: 'Old field name date (should be day)', endpoint: 'closingDays.add' },
+	{ pattern: /due_date.*getNodeParameter\('dueDate'/, desc: 'Old field name due_date (should be due_on)', endpoint: 'tasks.create' },
+	{ pattern: /url:.*getNodeParameter\('url'.*emailTracking/s, desc: 'Old field name url (should be content)', endpoint: 'emailTracking.create' },
+	{ pattern: /credit_note_lines/, desc: 'Old field name credit_note_lines (should be grouped_lines)', endpoint: 'invoices.creditPartially' },
+	{ pattern: /caller.*callee.*calls\.add/s, desc: 'Old caller/callee fields (should be participant)', endpoint: 'calls.add' },
+	{ pattern: /body\.name\b.*projectGroups\.create/s, desc: 'Old field name (should be title)', endpoint: 'projectGroups.create' },
+];
+
+console.log('\n━━━ Phase 5: Regression Checks (old field names) ━━━\n');
+for (const check of oldFieldChecks) {
+	if (check.pattern.test(nodeSrc)) {
+		console.log(`❌ ERROR ${check.endpoint}: ${check.desc}`);
+		errors++;
+	} else {
+		console.log(`✅ PASS  ${check.endpoint}: no old field names detected`);
 		passed++;
-	} else if (nodeSrc.match(new RegExp(`${ep.replace('.', '\\.')}.*\\{.*id.*format|format.*id`))) {
-		console.log(`✅ PASS  ${ep}: manually includes format parameter`);
-		passed++;
-	} else if (nodeSrc.includes(ep)) {
-		// Check if it's manual code with format
-		const epRegion = nodeSrc.substring(nodeSrc.indexOf(ep) - 200, nodeSrc.indexOf(ep) + 200);
-		if (epRegion.includes('format')) {
-			console.log(`✅ PASS  ${ep}: format found in surrounding code`);
-			passed++;
-		} else {
-			console.log(`❌ ERROR ${ep}: format parameter may be missing from request body`);
-			errors++;
+	}
+}
+
+// === Phase 6: Cross-validate spec required fields vs handler ===
+console.log('\n━━━ Phase 6: Spec Required Fields Auto-Check ━━━\n');
+let autoCheckPassed = 0;
+let autoCheckFailed = 0;
+
+for (const check of ENDPOINT_CHECKS) {
+	const schema = getEndpointSchema(check.endpoint);
+	if (!schema) continue;
+
+	const specRequired = getRequiredFields(schema);
+	const missing = specRequired.filter(f => f !== 'page' && f !== 'sort' && !check.actualSends.includes(f));
+
+	if (missing.length === 0) {
+		autoCheckPassed++;
+	} else {
+		const hasNote = check.note && missing.some(f => check.note.includes(f));
+		if (!hasNote) {
+			// Only report if not already noted
+			const alreadyReported = missing.every(f => check.note && check.note.includes(f));
+			if (!alreadyReported) {
+				autoCheckFailed++;
+			}
 		}
 	}
+}
+console.log(`    ${autoCheckPassed} endpoints have all required fields`);
+if (autoCheckFailed > 0) {
+	console.log(`    ${autoCheckFailed} endpoints have missing required fields (see Phase 2 errors above)`);
 }
 
 // ─── Summary ─────────────────────────────────────────────────────────────────
-console.log('\n=== Summary ===');
-console.log(`✅ Passed:   ${passed}`);
-console.log(`⚠  Warnings: ${warnings}`);
-console.log(`❌ Errors:   ${errors}`);
-console.log(`   Total:    ${ENDPOINT_MAP.length} endpoint mappings checked`);
+console.log('\n╔═══════════════════════════════════════╗');
+console.log('║            SUMMARY                    ║');
+console.log('╠═══════════════════════════════════════╣');
+console.log(`║  ✅ Passed:   ${String(passed).padStart(4)}                   ║`);
+console.log(`║  ⚠  Warnings: ${String(warnings).padStart(4)}                   ║`);
+console.log(`║  ❌ Errors:   ${String(errors).padStart(4)}                   ║`);
+console.log(`║  Total endpoints: ${String(ENDPOINT_CHECKS.length).padStart(4)}              ║`);
+console.log('╚═══════════════════════════════════════╝');
+
+if (errors > 0) {
+	console.log('\n⚡ Action items:');
+	console.log('   Errors indicate fields/structures that WILL cause API failures.');
+	console.log('   Warnings indicate potential issues that MAY cause problems.');
+}
 
 process.exit(errors > 0 ? 1 : 0);

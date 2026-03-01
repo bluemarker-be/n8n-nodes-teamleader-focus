@@ -86,7 +86,21 @@ export const projectFields: INodeProperties[] = [
 			{
 				displayName: 'Color',
 				name: 'color',
-				type: 'color',
+				type: 'options',
+				options: [
+					{ name: 'Teal', value: '#00B2B2' },
+					{ name: 'Dark Teal', value: '#008A8C' },
+					{ name: 'Brown', value: '#992600' },
+					{ name: 'Orange', value: '#ED9E00' },
+					{ name: 'Pink', value: '#D157D3' },
+					{ name: 'Purple', value: '#A400B2' },
+					{ name: 'Blue', value: '#0071F2' },
+					{ name: 'Dark Blue', value: '#004DA6' },
+					{ name: 'Grey Blue', value: '#64788F' },
+					{ name: 'Silver', value: '#C0C0C4' },
+					{ name: 'Grey', value: '#82828C' },
+					{ name: 'Black', value: '#1A1C20' },
+				],
 				default: '#00B2B2',
 			},
 			{
@@ -154,6 +168,19 @@ export const projectFields: INodeProperties[] = [
 				operation: ['get', 'update', 'delete', 'close', 'reopen', 'duplicate', 'addOwner', 'removeOwner', 'assign', 'unassign', 'addCustomer', 'removeCustomer', 'addDeal', 'removeDeal', 'addQuotation', 'removeQuotation'],
 			},
 		},
+	},
+
+	// ----------------------------------
+	//         project: duplicate
+	// ----------------------------------
+	{
+		displayName: 'Duplicate Title',
+		name: 'duplicateTitle',
+		type: 'string',
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['project'], operation: ['duplicate'] } },
+		description: 'Title for the duplicated project',
 	},
 
 	// ----------------------------------
@@ -374,7 +401,21 @@ export const projectFields: INodeProperties[] = [
 			{
 				displayName: 'Color',
 				name: 'color',
-				type: 'color',
+				type: 'options',
+				options: [
+					{ name: 'Teal', value: '#00B2B2' },
+					{ name: 'Dark Teal', value: '#008A8C' },
+					{ name: 'Brown', value: '#992600' },
+					{ name: 'Orange', value: '#ED9E00' },
+					{ name: 'Pink', value: '#D157D3' },
+					{ name: 'Purple', value: '#A400B2' },
+					{ name: 'Blue', value: '#0071F2' },
+					{ name: 'Dark Blue', value: '#004DA6' },
+					{ name: 'Grey Blue', value: '#64788F' },
+					{ name: 'Silver', value: '#C0C0C4' },
+					{ name: 'Grey', value: '#82828C' },
+					{ name: 'Black', value: '#1A1C20' },
+				],
 				default: '#00B2B2',
 			},
 		],

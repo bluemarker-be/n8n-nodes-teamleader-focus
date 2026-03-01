@@ -37,13 +37,14 @@ export const emailTrackingFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['emailTracking'], operation: ['create'] } },
 	},
 	{
-		displayName: 'URL',
-		name: 'url',
+		displayName: 'Content',
+		name: 'content',
 		type: 'string',
+		typeOptions: { rows: 4 },
 		required: true,
 		default: '',
 		displayOptions: { show: { resource: ['emailTracking'], operation: ['create'] } },
-		description: 'The URL to track',
+		description: 'The email content to track',
 	},
 	{
 		displayName: 'Return All',

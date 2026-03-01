@@ -47,6 +47,15 @@ export const quotationFields: INodeProperties[] = [
 		description: 'The ID of the contact or company',
 	},
 	{
+		displayName: 'Deal ID',
+		name: 'dealId',
+		type: 'string',
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['quotation'], operation: ['create'] } },
+		description: 'The ID of the related deal',
+	},
+	{
 		displayName: 'Grouped Lines (JSON)',
 		name: 'groupedLines',
 		type: 'json',
@@ -64,13 +73,6 @@ export const quotationFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['quotation'], operation: ['create'] } },
 		options: [
 			{
-				displayName: 'Deal ID',
-				name: 'deal_id',
-				type: 'string',
-				default: '',
-				description: 'The ID of the related deal',
-			},
-			{
 				displayName: 'Document Template Name or ID',
 				name: 'document_template_id',
 				type: 'options',
@@ -85,6 +87,23 @@ export const quotationFields: INodeProperties[] = [
 				type: 'string',
 				typeOptions: { rows: 4 },
 				default: '',
+			},
+			{
+				displayName: 'Currency Code',
+				name: 'currency_code',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getCurrencies' },
+				default: '',
+				description:
+					'Quotation currency code. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+			},
+			{
+				displayName: 'Currency Exchange Rate',
+				name: 'currency_exchange_rate',
+				type: 'number',
+				typeOptions: { numberPrecision: 6 },
+				default: 1,
+				description: 'Exchange rate for the quotation currency (default 1.0)',
 			},
 		],
 	},
@@ -104,6 +123,45 @@ export const quotationFields: INodeProperties[] = [
 				operation: ['get', 'update', 'delete', 'download', 'send', 'accept'],
 			},
 		},
+	},
+
+	// ----------------------------------
+	//         quotation: send
+	// ----------------------------------
+	{
+		displayName: 'Recipients (To)',
+		name: 'recipientsTo',
+		type: 'json',
+		required: true,
+		default: '[]',
+		displayOptions: { show: { resource: ['quotation'], operation: ['send'] } },
+		description: 'JSON array of recipient objects, e.g. [{"customer":{"type":"contact","id":"..."}}] or [{"email":"..."}]',
+	},
+	{
+		displayName: 'Subject',
+		name: 'emailSubject',
+		type: 'string',
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['quotation'], operation: ['send'] } },
+	},
+	{
+		displayName: 'Content',
+		name: 'emailContent',
+		type: 'string',
+		typeOptions: { rows: 6 },
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['quotation'], operation: ['send'] } },
+	},
+	{
+		displayName: 'Language',
+		name: 'language',
+		type: 'string',
+		required: true,
+		default: 'nl',
+		displayOptions: { show: { resource: ['quotation'], operation: ['send'] } },
+		description: 'Language code, e.g. "nl", "en", "fr"',
 	},
 
 	// ----------------------------------

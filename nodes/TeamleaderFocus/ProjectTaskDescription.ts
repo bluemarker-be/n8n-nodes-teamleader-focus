@@ -86,10 +86,21 @@ export const projectTaskFields: INodeProperties[] = [
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
 			{
-				displayName: 'Estimated Duration (seconds)',
-				name: 'estimated_duration',
+				displayName: 'Time Estimated (Value)',
+				name: 'time_estimated_value',
 				type: 'number',
 				default: 0,
+				description: 'Numeric value for the time estimate',
+			},
+			{
+				displayName: 'Time Estimated (Unit)',
+				name: 'time_estimated_unit',
+				type: 'options',
+				options: [
+					{ name: 'Hours', value: 'hours' },
+					{ name: 'Minutes', value: 'minutes' },
+				],
+				default: 'hours',
 			},
 			{
 				displayName: 'Due Date',

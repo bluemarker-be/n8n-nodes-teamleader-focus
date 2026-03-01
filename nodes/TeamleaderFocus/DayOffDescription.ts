@@ -20,14 +20,63 @@ export const dayOffOperations: INodeProperties[] = [
 ];
 
 export const dayOffFields: INodeProperties[] = [
+	// ----------------------------------
+	//         dayOff: import
+	// ----------------------------------
 	{
-		displayName: 'Days Off (JSON)',
-		name: 'daysOff',
+		displayName: 'User Name or ID',
+		name: 'userId',
+		type: 'options',
+		typeOptions: { loadOptionsMethod: 'getUsers' },
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['dayOff'], operation: ['import'] } },
+		description:
+			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+	},
+	{
+		displayName: 'Leave Type Name or ID',
+		name: 'leaveTypeId',
+		type: 'options',
+		typeOptions: { loadOptionsMethod: 'getDayOffTypes' },
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['dayOff'], operation: ['import'] } },
+		description:
+			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+	},
+	{
+		displayName: 'Days (JSON)',
+		name: 'days',
 		type: 'json',
 		required: true,
 		default: '[]',
-		displayOptions: { show: { resource: ['dayOff'], operation: ['import', 'bulkDelete'] } },
-		description: 'JSON array of day off objects',
+		displayOptions: { show: { resource: ['dayOff'], operation: ['import'] } },
+		description: 'JSON array of day objects, e.g. [{"date":"2024-01-15","hours":8}]',
+	},
+
+	// ----------------------------------
+	//         dayOff: bulkDelete
+	// ----------------------------------
+	{
+		displayName: 'User Name or ID',
+		name: 'userId',
+		type: 'options',
+		typeOptions: { loadOptionsMethod: 'getUsers' },
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['dayOff'], operation: ['bulkDelete'] } },
+		description:
+			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+	},
+	{
+		displayName: 'Day Off IDs (JSON)',
+		name: 'dayOffIds',
+		type: 'json',
+		required: true,
+		default: '[]',
+		displayOptions: { show: { resource: ['dayOff'], operation: ['bulkDelete'] } },
+		description: 'JSON array of day off IDs to delete, e.g. ["id1","id2"]',
 	},
 	{
 		displayName: 'Name',

@@ -35,13 +35,35 @@ export const ticketFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['ticket'], operation: ['create'] } },
 	},
 	{
-		displayName: 'Message',
-		name: 'message',
+		displayName: 'Customer Type',
+		name: 'customerType',
+		type: 'options',
+		options: [
+			{ name: 'Contact', value: 'contact' },
+			{ name: 'Company', value: 'company' },
+		],
+		required: true,
+		default: 'contact',
+		displayOptions: { show: { resource: ['ticket'], operation: ['create'] } },
+	},
+	{
+		displayName: 'Customer ID',
+		name: 'customerId',
 		type: 'string',
-		typeOptions: { rows: 6 },
 		required: true,
 		default: '',
 		displayOptions: { show: { resource: ['ticket'], operation: ['create'] } },
+	},
+	{
+		displayName: 'Ticket Status Name or ID',
+		name: 'ticketStatusId',
+		type: 'options',
+		typeOptions: { loadOptionsMethod: 'getTicketStatuses' },
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['ticket'], operation: ['create'] } },
+		description:
+			'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 	},
 	{
 		displayName: 'Additional Fields',
@@ -52,29 +74,11 @@ export const ticketFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['ticket'], operation: ['create'] } },
 		options: [
 			{
-				displayName: 'Customer Type',
-				name: 'customer_type',
-				type: 'options',
-				options: [
-					{ name: 'Contact', value: 'contact' },
-					{ name: 'Company', value: 'company' },
-				],
-				default: 'contact',
-			},
-			{
-				displayName: 'Customer ID',
-				name: 'customer_id',
+				displayName: 'Message',
+				name: 'message',
 				type: 'string',
+				typeOptions: { rows: 6 },
 				default: '',
-			},
-			{
-				displayName: 'Ticket Status Name or ID',
-				name: 'ticket_status_id',
-				type: 'options',
-				typeOptions: { loadOptionsMethod: 'getTicketStatuses' },
-				default: '',
-				description:
-					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
 			{
 				displayName: 'Assignee Name or ID',
