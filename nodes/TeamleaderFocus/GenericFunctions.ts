@@ -4,6 +4,7 @@ import type {
 	IHookFunctions,
 	IHttpRequestMethods,
 	ILoadOptionsFunctions,
+	INode,
 	IRequestOptions,
 	IWebhookFunctions,
 	JsonObject,
@@ -11,6 +12,7 @@ import type {
 import { NodeApiError } from 'n8n-workflow';
 
 const BASE_URL = 'https://api.focus.teamleader.eu';
+const MAX_RETRIES = 3;
 
 /**
  * Fields that the Teamleader API expects as date-only (YYYY-MM-DD),
@@ -67,6 +69,44 @@ function sanitizeDateFields(obj: IDataObject): void {
 	}
 }
 
+/**
+ * Parse Teamleader API error response into a readable NodeApiError.
+ * Teamleader returns: { errors: [{ code, title, status, meta: { field } }] }
+ */
+function formatTeamleaderError(node: INode, error: unknown, requestBody?: IDataObject): NodeApiError {
+	const err = error as Record<string, unknown>;
+	let body: unknown = err.error ?? (err.response as Record<string, unknown>)?.body;
+
+	if (typeof body === 'string') {
+		try { body = JSON.parse(body); } catch { /* keep as string */ }
+	}
+
+	const parsed = body as Record<string, unknown> | undefined;
+	const errors = parsed?.errors as Array<Record<string, unknown>> | undefined;
+
+	// Include the outgoing request body in the error description for debugging
+	const requestInfo = requestBody && Object.keys(requestBody).length > 0
+		? `\n\nRequest body sent:\n${JSON.stringify(requestBody, null, 2)}`
+		: '';
+
+	if (errors?.length) {
+		const details = errors.map((e) => {
+			const field = (e.meta as Record<string, unknown>)?.field;
+			const fieldStr = field ? ` (field: ${field})` : '';
+			return `${(e.title as string) || 'Unknown error'}${fieldStr}`;
+		});
+		return new NodeApiError(node, err as JsonObject, {
+			message: details.join('; '),
+			description: requestInfo || undefined,
+			httpCode: String(err.statusCode ?? (errors[0]?.status as number) ?? ''),
+		});
+	}
+
+	return new NodeApiError(node, err as JsonObject, {
+		description: requestInfo || undefined,
+	});
+}
+
 export async function teamleaderApiRequest(
 	this: IExecuteFunctions | ILoadOptionsFunctions | IHookFunctions | IWebhookFunctions,
 	method: IHttpRequestMethods,
@@ -88,14 +128,78 @@ export async function teamleaderApiRequest(
 		delete options.body;
 	}
 
-	try {
-		return (await this.helpers.requestOAuth2.call(
-			this,
-			'teamleaderFocusOAuth2Api',
-			options,
-		)) as IDataObject;
-	} catch (error) {
-		throw new NodeApiError(this.getNode(), error as JsonObject);
+	for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+		try {
+			return (await this.helpers.requestOAuth2.call(
+				this,
+				'teamleaderFocusOAuth2Api',
+				options,
+			)) as IDataObject;
+		} catch (error) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const err = error as any;
+			const statusCode = err.statusCode ?? err.response?.statusCode;
+
+			// Rate limiting (429): Teamleader allows 200 req/min (sliding window).
+			// Use x-ratelimit-reset header to wait until the oldest request expires,
+			// fallback to exponential backoff if header is unavailable.
+			if (statusCode === 429 && attempt < MAX_RETRIES) {
+				let waitMs = (attempt + 1) * 5 * 1000; // fallback: 5s, 10s, 15s
+				const resetHeader = err.response?.headers?.['x-ratelimit-reset'];
+				if (resetHeader) {
+					const resetMs = new Date(resetHeader as string).getTime() - Date.now();
+					if (resetMs > 0 && resetMs < 65_000) {
+						waitMs = resetMs + 500;
+					}
+				}
+				await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+				continue;
+			}
+
+			// Single-use refresh token race condition (401): retry once after short delay
+			if (statusCode === 401 && attempt === 0) {
+				await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+				continue;
+			}
+
+			throw formatTeamleaderError(this.getNode(), error, body);
+		}
+	}
+
+	// Unreachable, but TypeScript requires it
+	throw new NodeApiError(this.getNode(), {} as JsonObject, { message: 'Max retries exceeded' });
+}
+
+/**
+ * Mapping of endpoints to their available `includes` values.
+ * These are automatically added to requests to always return full data.
+ */
+const ENDPOINT_INCLUDES: Record<string, string> = {
+	'/contacts.list': 'custom_fields,price_list',
+	'/companies.list': 'custom_fields,price_list',
+	'/companies.info': 'related_companies,related_contacts',
+	'/deals.list': 'custom_fields',
+	'/invoices.list': 'late_fees',
+	'/invoices.info': 'late_fees',
+	'/meetings.list': 'tracked_time,estimated_time',
+	'/meetings.info': 'tracked_time,estimated_time',
+	'/products.info': 'suppliers',
+	'/projects-v2/projects.list': 'legacy_project,custom_fields',
+	'/projects-v2/projects.info': 'legacy_project',
+	'/timeTracking.list': 'materials,relates_to',
+	'/timeTracking.info': 'materials,relates_to',
+	'/orders.list': 'custom_fields',
+	'/orders.info': 'custom_fields',
+	'/users.info': 'external_rate',
+};
+
+/**
+ * Add `includes` parameter to the request body if the endpoint supports it.
+ */
+export function addIncludes(endpoint: string, body: IDataObject): void {
+	const includes = ENDPOINT_INCLUDES[endpoint];
+	if (includes) {
+		body.includes = includes;
 	}
 }
 
@@ -132,12 +236,9 @@ export function mapCustomFields(
 ): Array<{ id: string; value: unknown }> {
 	return customFields.map((cf) => {
 		let value: unknown = cf.fieldValue;
-		// Try to parse JSON values (for arrays, objects)
+		// Try to parse JSON values (booleans, numbers, arrays, objects)
 		try {
-			const parsed = JSON.parse(cf.fieldValue);
-			if (typeof parsed === 'object') {
-				value = parsed;
-			}
+			value = JSON.parse(cf.fieldValue);
 		} catch {
 			// keep as string
 		}

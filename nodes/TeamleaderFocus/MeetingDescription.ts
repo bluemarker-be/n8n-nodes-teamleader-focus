@@ -462,7 +462,7 @@ export const meetingFields: INodeProperties[] = [
 						displayName: 'Field Name or ID',
 						name: 'fieldId',
 						type: 'options',
-						typeOptions: { loadOptionsMethod: 'getMeetingCustomFields' },
+						typeOptions: { loadOptionsMethod: 'getMeetingReportCustomFields' },
 						default: '',
 						description:
 							'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',

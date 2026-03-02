@@ -242,6 +242,41 @@ export const subscriptionFields: INodeProperties[] = [
 		],
 	},
 
+	{
+		displayName: 'Custom Fields',
+		name: 'customFields',
+		type: 'fixedCollection',
+		typeOptions: { multipleValues: true },
+		placeholder: 'Add Custom Field',
+		default: {},
+		displayOptions: { show: { resource: ['subscription'], operation: ['create'] } },
+		options: [
+			{
+				displayName: 'Field',
+				name: 'field',
+				values: [
+					{
+						displayName: 'Field Name or ID',
+						name: 'fieldId',
+						type: 'options',
+						typeOptions: { loadOptionsMethod: 'getSubscriptionCustomFields' },
+						default: '',
+						description:
+							'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+					},
+					{
+						displayName: 'Field Value',
+						name: 'fieldValue',
+						type: 'string',
+						default: '',
+						description:
+							'Value for the field. For multi-select fields, use JSON array syntax: ["option1","option2"].',
+					},
+				],
+			},
+		],
+	},
+
 	// ----------------------------------
 	//         subscription: get / update / deactivate
 	// ----------------------------------
@@ -492,6 +527,38 @@ export const subscriptionFields: INodeProperties[] = [
 				name: 'for_attention_of_contact_id',
 				type: 'string',
 				default: '',
+			},
+		],
+	},
+	{
+		displayName: 'Custom Fields',
+		name: 'customFields',
+		type: 'fixedCollection',
+		typeOptions: { multipleValues: true },
+		placeholder: 'Add Custom Field',
+		default: {},
+		displayOptions: { show: { resource: ['subscription'], operation: ['update'] } },
+		options: [
+			{
+				displayName: 'Field',
+				name: 'field',
+				values: [
+					{
+						displayName: 'Field Name or ID',
+						name: 'fieldId',
+						type: 'options',
+						typeOptions: { loadOptionsMethod: 'getSubscriptionCustomFields' },
+						default: '',
+						description:
+							'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+					},
+					{
+						displayName: 'Field Value',
+						name: 'fieldValue',
+						type: 'string',
+						default: '',
+					},
+				],
 			},
 		],
 	},

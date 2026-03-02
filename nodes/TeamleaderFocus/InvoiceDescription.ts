@@ -712,6 +712,38 @@ export const invoiceFields: INodeProperties[] = [
 			},
 		],
 	},
+	{
+		displayName: 'Custom Fields',
+		name: 'customFields',
+		type: 'fixedCollection',
+		typeOptions: { multipleValues: true },
+		placeholder: 'Add Custom Field',
+		default: {},
+		displayOptions: { show: { resource: ['invoice'], operation: ['updateBooked'] } },
+		options: [
+			{
+				displayName: 'Field',
+				name: 'field',
+				values: [
+					{
+						displayName: 'Field Name or ID',
+						name: 'fieldId',
+						type: 'options',
+						typeOptions: { loadOptionsMethod: 'getInvoiceCustomFields' },
+						default: '',
+						description:
+							'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+					},
+					{
+						displayName: 'Field Value',
+						name: 'fieldValue',
+						type: 'string',
+						default: '',
+					},
+				],
+			},
+		],
+	},
 
 	// ----------------------------------
 	//         invoice: registerPayment

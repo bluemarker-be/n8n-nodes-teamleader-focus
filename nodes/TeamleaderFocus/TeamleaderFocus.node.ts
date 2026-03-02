@@ -14,6 +14,7 @@ import {
 	teamleaderApiRequestAllItems,
 	mapCustomFields,
 	buildFilter,
+	addIncludes,
 } from './GenericFunctions';
 
 // CRM
@@ -83,6 +84,13 @@ import { userAvailabilityOperations, userAvailabilityFields } from './UserAvaila
 import { expenseOperations, expenseFields } from './ExpenseDescription';
 import { bookkeepingSubmissionOperations, bookkeepingSubmissionFields } from './BookkeepingSubmissionDescription';
 
+// Utilities
+import { accountOperations, accountFields } from './AccountDescription';
+import { cloudPlatformOperations, cloudPlatformFields } from './CloudPlatformDescription';
+import { currencyOperations, currencyFields } from './CurrencyDescription';
+import { levelTwoAreaOperations, levelTwoAreaFields } from './LevelTwoAreaDescription';
+import { mailTemplateOperations, mailTemplateFields } from './MailTemplateDescription';
+
 export class TeamleaderFocus implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Teamleader Focus',
@@ -110,12 +118,15 @@ export class TeamleaderFocus implements INodeType {
 				type: 'options',
 				noDataExpression: true,
 				options: [
+					{ name: 'Account', value: 'account' },
 					{ name: 'Bookkeeping Submission', value: 'bookkeepingSubmission' },
 					{ name: 'Call', value: 'call' },
+					{ name: 'Cloud Platform', value: 'cloudPlatform' },
 					{ name: 'Closing Day', value: 'closingDay' },
 					{ name: 'Company', value: 'company' },
 					{ name: 'Contact', value: 'contact' },
 					{ name: 'Credit Note', value: 'creditNote' },
+					{ name: 'Currency', value: 'currency' },
 					{ name: 'Custom Field', value: 'customField' },
 					{ name: 'Day Off', value: 'dayOff' },
 					{ name: 'Deal', value: 'deal' },
@@ -130,6 +141,8 @@ export class TeamleaderFocus implements INodeType {
 					{ name: 'Incoming Credit Note', value: 'incomingCreditNote' },
 					{ name: 'Incoming Invoice', value: 'incomingInvoice' },
 					{ name: 'Invoice', value: 'invoice' },
+					{ name: 'Level Two Area', value: 'levelTwoArea' },
+					{ name: 'Mail Template', value: 'mailTemplate' },
 					{ name: 'Meeting', value: 'meeting' },
 					{ name: 'Note', value: 'note' },
 					{ name: 'Order', value: 'order' },
@@ -247,6 +260,17 @@ export class TeamleaderFocus implements INodeType {
 			...expenseFields,
 			...bookkeepingSubmissionOperations,
 			...bookkeepingSubmissionFields,
+			// Utilities
+			...accountOperations,
+			...accountFields,
+			...cloudPlatformOperations,
+			...cloudPlatformFields,
+			...currencyOperations,
+			...currencyFields,
+			...levelTwoAreaOperations,
+			...levelTwoAreaFields,
+			...mailTemplateOperations,
+			...mailTemplateFields,
 		],
 	};
 
@@ -476,6 +500,31 @@ export class TeamleaderFocus implements INodeType {
 			): Promise<INodePropertyOptions[]> {
 				return loadCustomFields.call(this, 'todo');
 			},
+			async getCallCustomFields(
+				this: ILoadOptionsFunctions,
+			): Promise<INodePropertyOptions[]> {
+				return loadCustomFields.call(this, 'callback');
+			},
+			async getMeetingCustomFields(
+				this: ILoadOptionsFunctions,
+			): Promise<INodePropertyOptions[]> {
+				return loadCustomFields.call(this, 'meeting');
+			},
+			async getMeetingReportCustomFields(
+				this: ILoadOptionsFunctions,
+			): Promise<INodePropertyOptions[]> {
+				return loadCustomFields.call(this, 'meeting_report');
+			},
+			async getProductCustomFields(
+				this: ILoadOptionsFunctions,
+			): Promise<INodePropertyOptions[]> {
+				return loadCustomFields.call(this, 'product');
+			},
+			async getSubscriptionCustomFields(
+				this: ILoadOptionsFunctions,
+			): Promise<INodePropertyOptions[]> {
+				return loadCustomFields.call(this, 'subscription');
+			},
 
 			async getPriceLists(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
 				const data = await teamleaderApiRequestAllItems.call(this, '/priceLists.list');
@@ -663,11 +712,13 @@ export class TeamleaderFocus implements INodeType {
 						);
 					} else if (operation === 'get') {
 						const id = this.getNodeParameter('id', i) as string;
+						const infoBody: IDataObject = { id };
+						addIncludes('/companies.info', infoBody);
 						responseData = await teamleaderApiRequest.call(
 							this,
 							'POST',
 							'/companies.info',
-							{ id },
+							infoBody,
 						);
 					} else if (operation === 'getMany') {
 						responseData = await handleGetMany.call(this, i, '/companies.list');
@@ -1156,6 +1207,7 @@ export class TeamleaderFocus implements INodeType {
 						delete additionalFields.for_attention_of_name;
 						delete additionalFields.for_attention_of_contact_id;
 						assignDefined(body, additionalFields);
+						addCustomFieldsToBody.call(this, body, i);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/subscriptions.create', body);
 					} else if (operation === 'get') {
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/subscriptions.info', { id: this.getNodeParameter('id', i) as string });
@@ -1223,6 +1275,7 @@ export class TeamleaderFocus implements INodeType {
 							delete updateFields.invoice_generation_sending_methods;
 						}
 						assignDefined(body, updateFields);
+						addCustomFieldsToBody.call(this, body, i, true);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/subscriptions.update', body);
 					} else if (operation === 'deactivate') {
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/subscriptions.deactivate', { id: this.getNodeParameter('id', i) as string });
@@ -1485,7 +1538,9 @@ export class TeamleaderFocus implements INodeType {
 						addCustomFieldsToBody.call(this, body, i);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/meetings.schedule', body);
 					} else if (operation === 'get') {
-						responseData = await teamleaderApiRequest.call(this, 'POST', '/meetings.info', { id: this.getNodeParameter('id', i) as string });
+						const meetingInfoBody: IDataObject = { id: this.getNodeParameter('id', i) as string };
+						addIncludes('/meetings.info', meetingInfoBody);
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/meetings.info', meetingInfoBody);
 					} else if (operation === 'getMany') {
 						responseData = await handleGetMany.call(this, i, '/meetings.list');
 					} else if (operation === 'update') {
@@ -1609,7 +1664,9 @@ export class TeamleaderFocus implements INodeType {
 						assignDefined(body, additionalFields);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/timeTracking.add', body);
 					} else if (operation === 'get') {
-						responseData = await teamleaderApiRequest.call(this, 'POST', '/timeTracking.info', { id: this.getNodeParameter('id', i) as string });
+						const ttInfoBody: IDataObject = { id: this.getNodeParameter('id', i) as string };
+						addIncludes('/timeTracking.info', ttInfoBody);
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/timeTracking.info', ttInfoBody);
 					} else if (operation === 'getMany') {
 						responseData = await handleGetMany.call(this, i, '/timeTracking.list');
 					} else if (operation === 'update') {
@@ -1807,7 +1864,9 @@ export class TeamleaderFocus implements INodeType {
 						addCustomFieldsToBody.call(this, body, i);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/projects-v2/projects.create', body);
 					} else if (operation === 'get') {
-						responseData = await teamleaderApiRequest.call(this, 'POST', '/projects-v2/projects.info', { id: this.getNodeParameter('id', i) as string });
+						const projInfoBody: IDataObject = { id: this.getNodeParameter('id', i) as string };
+						addIncludes('/projects-v2/projects.info', projInfoBody);
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/projects-v2/projects.info', projInfoBody);
 					} else if (operation === 'getMany') {
 						responseData = await handleGetMany.call(this, i, '/projects-v2/projects.list');
 					} else if (operation === 'update') {
@@ -2172,7 +2231,9 @@ export class TeamleaderFocus implements INodeType {
 						assignDefined(body, additionalFields);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/products.add', body);
 					} else if (operation === 'get') {
-						responseData = await teamleaderApiRequest.call(this, 'POST', '/products.info', { id: this.getNodeParameter('id', i) as string });
+						const prodInfoBody: IDataObject = { id: this.getNodeParameter('id', i) as string };
+						addIncludes('/products.info', prodInfoBody);
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/products.info', prodInfoBody);
 					} else if (operation === 'getMany') {
 						responseData = await handleGetMany.call(this, i, '/products.list');
 					} else if (operation === 'update') {
@@ -2273,7 +2334,9 @@ export class TeamleaderFocus implements INodeType {
 					if (operation === 'getCurrent') {
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/users.me');
 					} else if (operation === 'get') {
-						responseData = await teamleaderApiRequest.call(this, 'POST', '/users.info', { id: this.getNodeParameter('id', i) as string });
+						const userInfoBody: IDataObject = { id: this.getNodeParameter('id', i) as string };
+						addIncludes('/users.info', userInfoBody);
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/users.info', userInfoBody);
 					} else if (operation === 'getMany') {
 						responseData = await handleGetMany.call(this, i, '/users.list');
 					} else if (operation === 'getWeekSchedule') {
@@ -2666,7 +2729,9 @@ export class TeamleaderFocus implements INodeType {
 				// ==============================
 				else if (resource === 'order') {
 					if (operation === 'get') {
-						responseData = await teamleaderApiRequest.call(this, 'POST', '/orders.info', { id: this.getNodeParameter('id', i) as string });
+						const orderInfoBody: IDataObject = { id: this.getNodeParameter('id', i) as string };
+						addIncludes('/orders.info', orderInfoBody);
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/orders.info', orderInfoBody);
 					} else if (operation === 'getMany') {
 						responseData = await handleGetMany.call(this, i, '/orders.list');
 					}
@@ -2726,6 +2791,58 @@ export class TeamleaderFocus implements INodeType {
 				else if (resource === 'bookkeepingSubmission') {
 					if (operation === 'getMany') {
 						responseData = await handleGetMany.call(this, i, '/bookkeepingSubmissions.list');
+					}
+				}
+
+				// ==============================
+				//         UTILITIES
+				// ==============================
+				else if (resource === 'account') {
+					if (operation === 'getProjectsV2Status') {
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/accounts.projects-v2-status');
+					}
+				}
+
+				else if (resource === 'cloudPlatform') {
+					if (operation === 'getUrl') {
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/cloudPlatforms.url', {
+							type: this.getNodeParameter('type', i) as string,
+							id: this.getNodeParameter('id', i) as string,
+						});
+					}
+				}
+
+				else if (resource === 'currency') {
+					if (operation === 'getExchangeRates') {
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/currencies.exchangeRates', {
+							base: this.getNodeParameter('base', i) as string,
+						});
+					}
+				}
+
+				else if (resource === 'levelTwoArea') {
+					if (operation === 'getMany') {
+						const body: IDataObject = {
+							country: this.getNodeParameter('country', i) as string,
+						};
+						const language = this.getNodeParameter('language', i) as string;
+						if (language) {
+							body.language = language;
+						}
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/levelTwoAreas.list', body);
+					}
+				}
+
+				else if (resource === 'mailTemplate') {
+					if (operation === 'getMany') {
+						const filter: IDataObject = {
+							type: this.getNodeParameter('type', i) as string,
+						};
+						const departmentId = this.getNodeParameter('departmentId', i) as string;
+						if (departmentId) {
+							filter.department_id = departmentId;
+						}
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/mailTemplates.list', { filter });
 					}
 				}
 
@@ -2805,6 +2922,9 @@ async function handleGetMany(
 ): Promise<IDataObject[]> {
 	const returnAll = this.getNodeParameter('returnAll', itemIndex, false) as boolean;
 	const body: IDataObject = { ...extraBody };
+
+	// Add includes (e.g. custom_fields, related data)
+	addIncludes(endpoint, body);
 
 	// Add filters
 	try {
@@ -2982,6 +3102,7 @@ async function handleResourceOperation(
 		const body: IDataObject = {
 			id: this.getNodeParameter(config.idField, itemIndex) as string,
 		};
+		addIncludes(config.endpoint, body);
 		if (config.hasUpdateFields) {
 			try {
 				const updateFields = this.getNodeParameter('updateFields', itemIndex) as IDataObject;
@@ -3368,6 +3489,7 @@ function buildInvoiceUpdateBookedBody(context: IExecuteFunctions, itemIndex: num
 	} catch {
 		// No update fields
 	}
+	addCustomFieldsToBody.call(context, body, itemIndex, true);
 	return body;
 }
 

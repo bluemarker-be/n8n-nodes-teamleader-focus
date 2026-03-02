@@ -78,13 +78,22 @@ function flattenSchema(schema, prefix = '') {
 	return result;
 }
 
+/** Check if an endpoint exists in the spec (regardless of request body) */
+function endpointExistsInSpec(endpointPath) {
+	const pathDef = spec.paths && spec.paths[endpointPath];
+	return !!(pathDef && pathDef.post);
+}
+
 /** Get the request body schema for a given endpoint */
 function getEndpointSchema(endpointPath) {
 	const pathDef = spec.paths && spec.paths[endpointPath];
 	if (!pathDef) return null;
 	const post = pathDef.post;
 	if (!post) return null;
-	const content = post.requestBody && post.requestBody.content && post.requestBody.content['application/json'];
+	const reqBody = post.requestBody;
+	if (!reqBody || !reqBody.content) return null;
+	// Support both 'application/json' and 'application/json;charset=utf-8'
+	const content = reqBody.content['application/json'] || reqBody.content['application/json;charset=utf-8'];
 	if (!content) return null;
 	return content.schema || null;
 }
@@ -759,6 +768,13 @@ const ENDPOINT_CHECKS = [
 		requiredBySpec: ['period'],
 		actualSends: ['period'],
 	},
+
+	// ═══════════════ UTILITIES ═══════════════
+	{ endpoint: '/accounts.projects-v2-status', requiredBySpec: [], actualSends: [] },
+	{ endpoint: '/cloudPlatforms.url', requiredBySpec: ['type', 'id'], actualSends: ['type', 'id'] },
+	{ endpoint: '/currencies.exchangeRates', requiredBySpec: ['base'], actualSends: ['base'] },
+	{ endpoint: '/levelTwoAreas.list', requiredBySpec: ['country'], actualSends: ['country'] },
+	{ endpoint: '/mailTemplates.list', requiredBySpec: ['filter'], actualSends: ['filter'] },
 ];
 
 // ─── Run validation ──────────────────────────────────────────────────────────
@@ -773,8 +789,7 @@ console.log('╚═════════════════════�
 // === Phase 1: Verify endpoints exist in spec ===
 console.log('━━━ Phase 1: Endpoint Existence ━━━\n');
 for (const check of ENDPOINT_CHECKS) {
-	const schema = getEndpointSchema(check.endpoint);
-	if (!schema) {
+	if (!endpointExistsInSpec(check.endpoint)) {
 		console.log(`⚠  WARN  ${check.endpoint}: not found in spec`);
 		warnings++;
 	}
