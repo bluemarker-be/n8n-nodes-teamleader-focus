@@ -118,6 +118,8 @@ export const ticketFields: INodeProperties[] = [
 						name: 'fieldValue',
 						type: 'string',
 						default: '',
+						description:
+							'Value for the custom field. For single_select: use the option ID (see Field Name description). For multi_select: use an expression returning a JSON array of option IDs. For other types: enter the value directly.',
 					},
 				],
 			},
@@ -267,6 +269,8 @@ export const ticketFields: INodeProperties[] = [
 						name: 'fieldValue',
 						type: 'string',
 						default: '',
+						description:
+							'Value for the custom field. For single_select: use the option ID (see Field Name description). For multi_select: use an expression returning a JSON array of option IDs. For other types: enter the value directly.',
 					},
 				],
 			},

@@ -2892,10 +2892,27 @@ async function loadCustomFields(
 		'/customFieldDefinitions.list',
 		{ filter: { context } },
 	);
-	return data.map((cf) => ({
-		name: cf.label as string,
-		value: cf.id as string,
-	}));
+	return data.map((cf) => {
+		const fieldType = cf.type as string;
+		const label = cf.label as string;
+		let description = fieldType;
+
+		// For select types, show available options with their IDs
+		if (fieldType === 'single_select' || fieldType === 'multi_select') {
+			const config = cf.configuration as IDataObject | undefined;
+			const options = (config?.options as Array<{ id: string; value: string }>) ?? [];
+			if (options.length > 0) {
+				const optionList = options.map((o) => `${o.value} (${o.id})`).join('<br>');
+				description = `${fieldType}<br>${optionList}`;
+			}
+		}
+
+		return {
+			name: label,
+			value: cf.id as string,
+			description,
+		};
+	});
 }
 
 function addCustomFieldsToBody(
