@@ -326,12 +326,12 @@ export const subscriptionFields: INodeProperties[] = [
 			{
 				displayName: 'Status',
 				name: 'status',
-				type: 'options',
+				type: 'multiOptions',
 				options: [
 					{ name: 'Active', value: 'active' },
 					{ name: 'Deactivated', value: 'deactivated' },
 				],
-				default: 'active',
+				default: [],
 			},
 		],
 	},

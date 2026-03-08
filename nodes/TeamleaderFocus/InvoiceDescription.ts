@@ -420,13 +420,13 @@ export const invoiceFields: INodeProperties[] = [
 			{
 				displayName: 'Status',
 				name: 'status',
-				type: 'options',
+				type: 'multiOptions',
 				options: [
 					{ name: 'Draft', value: 'draft' },
 					{ name: 'Outstanding', value: 'outstanding' },
 					{ name: 'Matched', value: 'matched' },
 				],
-				default: 'draft',
+				default: [],
 			},
 			{
 				displayName: 'Updated Since',

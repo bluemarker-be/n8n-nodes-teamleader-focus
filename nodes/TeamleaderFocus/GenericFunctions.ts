@@ -207,7 +207,7 @@ export async function teamleaderApiRequestAllItems(
 	this: IExecuteFunctions | ILoadOptionsFunctions,
 	endpoint: string,
 	body: IDataObject = {},
-	pageSize = 20,
+	pageSize = 100,
 ): Promise<IDataObject[]> {
 	const returnData: IDataObject[] = [];
 	let pageNumber = 1;

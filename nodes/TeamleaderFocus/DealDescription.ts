@@ -268,13 +268,13 @@ export const dealFields: INodeProperties[] = [
 			{
 				displayName: 'Status',
 				name: 'status',
-				type: 'options',
+				type: 'multiOptions',
 				options: [
 					{ name: 'Open', value: 'open' },
 					{ name: 'Won', value: 'won' },
 					{ name: 'Lost', value: 'lost' },
 				],
-				default: 'open',
+				default: [],
 			},
 			{
 				displayName: 'Created After',

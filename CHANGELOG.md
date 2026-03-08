@@ -37,3 +37,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Made spec-required fields (dealPipeline name, dealPhase name/attention, timeTracking duration) always required in UI
 - Improved descriptions with JSON examples for remaining complex fields (grouped_lines, recipientsTo, etc.)
 - Validator: added oneOf field handling for conditional required fields
+- `filter.status` now sends as array (multiOptions) for deals, invoices, and subscriptions — matches API spec
+- Default page size increased from 20 to 100 for better performance
