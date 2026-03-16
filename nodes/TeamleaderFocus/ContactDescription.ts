@@ -266,7 +266,7 @@ export const contactFields: INodeProperties[] = [
 		name: 'limit',
 		type: 'number',
 		typeOptions: { minValue: 1, maxValue: 100 },
-		default: 20,
+		default: 100,
 		displayOptions: { show: { resource: ['contact'], operation: ['getMany'], returnAll: [false] } },
 		description: 'Max number of results to return',
 	},

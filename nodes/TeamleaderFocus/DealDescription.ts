@@ -230,7 +230,7 @@ export const dealFields: INodeProperties[] = [
 		name: 'limit',
 		type: 'number',
 		typeOptions: { minValue: 1, maxValue: 100 },
-		default: 20,
+		default: 100,
 		displayOptions: { show: { resource: ['deal'], operation: ['getMany'], returnAll: [false] } },
 	},
 	{
@@ -277,10 +277,25 @@ export const dealFields: INodeProperties[] = [
 				default: [],
 			},
 			{
-				displayName: 'Created After',
-				name: 'created_after',
+				displayName: 'Estimated Closing Date',
+				name: 'estimated_closing_date',
 				type: 'dateTime',
 				default: '',
+				description: 'Filter on exact estimated closing date',
+			},
+			{
+				displayName: 'Estimated Closing Date From',
+				name: 'estimated_closing_date_from',
+				type: 'dateTime',
+				default: '',
+				description: 'Filter on estimated closing date (inclusive, from)',
+			},
+			{
+				displayName: 'Estimated Closing Date Until',
+				name: 'estimated_closing_date_until',
+				type: 'dateTime',
+				default: '',
+				description: 'Filter on estimated closing date (inclusive, until)',
 			},
 			{
 				displayName: 'Created Before',
@@ -289,8 +304,8 @@ export const dealFields: INodeProperties[] = [
 				default: '',
 			},
 			{
-				displayName: 'Updated After',
-				name: 'updated_after',
+				displayName: 'Updated Since',
+				name: 'updated_since',
 				type: 'dateTime',
 				default: '',
 			},

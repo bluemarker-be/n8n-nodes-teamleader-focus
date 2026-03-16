@@ -41,7 +41,7 @@ export const projectLineFields: INodeProperties[] = [
 		name: 'limit',
 		type: 'number',
 		typeOptions: { minValue: 1, maxValue: 100 },
-		default: 20,
+		default: 100,
 		displayOptions: {
 			show: { resource: ['projectLine'], operation: ['getMany'], returnAll: [false] },
 		},

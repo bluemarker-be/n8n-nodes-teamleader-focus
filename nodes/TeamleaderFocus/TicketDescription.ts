@@ -171,7 +171,7 @@ export const ticketFields: INodeProperties[] = [
 		name: 'limit',
 		type: 'number',
 		typeOptions: { minValue: 1, maxValue: 100 },
-		default: 20,
+		default: 100,
 		displayOptions: {
 			show: { resource: ['ticket'], operation: ['getMany'], returnAll: [false] },
 		},
@@ -185,22 +185,11 @@ export const ticketFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['ticket'], operation: ['getMany'] } },
 		options: [
 			{
-				displayName: 'Ticket Status Name or ID',
-				name: 'ticket_status_id',
-				type: 'options',
-				typeOptions: { loadOptionsMethod: 'getTicketStatuses' },
+				displayName: 'Project IDs',
+				name: 'project_ids',
+				type: 'string',
 				default: '',
-				description:
-					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
-			},
-			{
-				displayName: 'Assignee Name or ID',
-				name: 'assignee_id',
-				type: 'options',
-				typeOptions: { loadOptionsMethod: 'getUsers' },
-				default: '',
-				description:
-					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+				description: 'Comma-separated list of project IDs to filter on',
 			},
 		],
 	},

@@ -310,7 +310,7 @@ export const subscriptionFields: INodeProperties[] = [
 		name: 'limit',
 		type: 'number',
 		typeOptions: { minValue: 1, maxValue: 100 },
-		default: 20,
+		default: 100,
 		displayOptions: {
 			show: { resource: ['subscription'], operation: ['getMany'], returnAll: [false] },
 		},
@@ -447,12 +447,14 @@ export const subscriptionFields: INodeProperties[] = [
 				name: 'project_id',
 				type: 'string',
 				default: '',
+				description: 'The ID of the related project. Leave empty to unlink.',
 			},
 			{
 				displayName: 'Deal ID',
 				name: 'deal_id',
 				type: 'string',
 				default: '',
+				description: 'The ID of the related deal. Leave empty to unlink.',
 			},
 			{
 				displayName: 'Invoice Generation Action',

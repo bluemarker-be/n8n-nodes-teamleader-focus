@@ -82,7 +82,7 @@ export const projectGroupFields: INodeProperties[] = [
 		name: 'limit',
 		type: 'number',
 		typeOptions: { minValue: 1, maxValue: 100 },
-		default: 20,
+		default: 100,
 		displayOptions: {
 			show: { resource: ['projectGroup'], operation: ['getMany'], returnAll: [false] },
 		},

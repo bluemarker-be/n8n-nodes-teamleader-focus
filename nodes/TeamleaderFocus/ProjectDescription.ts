@@ -390,7 +390,7 @@ export const projectFields: INodeProperties[] = [
 		name: 'limit',
 		type: 'number',
 		typeOptions: { minValue: 1, maxValue: 100 },
-		default: 20,
+		default: 100,
 		displayOptions: {
 			show: { resource: ['project'], operation: ['getMany'], returnAll: [false] },
 		},

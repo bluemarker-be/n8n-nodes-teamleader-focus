@@ -73,7 +73,7 @@ export const noteFields: INodeProperties[] = [
 		name: 'limit',
 		type: 'number',
 		typeOptions: { minValue: 1, maxValue: 100 },
-		default: 20,
+		default: 100,
 		displayOptions: {
 			show: { resource: ['note'], operation: ['getMany'], returnAll: [false] },
 		},

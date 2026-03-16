@@ -185,7 +185,7 @@ export const timeTrackingFields: INodeProperties[] = [
 		name: 'limit',
 		type: 'number',
 		typeOptions: { minValue: 1, maxValue: 100 },
-		default: 20,
+		default: 100,
 		displayOptions: {
 			show: { resource: ['timeTracking'], operation: ['getMany'], returnAll: [false] },
 		},

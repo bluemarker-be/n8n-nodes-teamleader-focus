@@ -1274,6 +1274,13 @@ export class TeamleaderFocus implements INodeType {
 							delete updateFields.invoice_generation_payment_method;
 							delete updateFields.invoice_generation_sending_methods;
 						}
+						// Nullable fields: send null to unlink
+						for (const nullableField of ['project_id', 'deal_id']) {
+							if (nullableField in updateFields && updateFields[nullableField] === '') {
+								body[nullableField] = null;
+								delete updateFields[nullableField];
+							}
+						}
 						assignDefined(body, updateFields);
 						addCustomFieldsToBody.call(this, body, i, true);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/subscriptions.update', body);
@@ -2847,6 +2854,7 @@ export class TeamleaderFocus implements INodeType {
 				}
 
 				// Build output
+				const prevLength = returnData.length;
 				if (responseData !== undefined) {
 					if (Array.isArray(responseData)) {
 						const executionData = this.helpers.constructExecutionMetaData(
@@ -2862,6 +2870,10 @@ export class TeamleaderFocus implements INodeType {
 						);
 						returnData.push(...executionData);
 					}
+				}
+				// Ensure every input item produces at least one output item
+				if (returnData.length === prevLength) {
+					returnData.push({ json: {}, pairedItem: { item: i } });
 				}
 			} catch (error) {
 				if (this.continueOnFail()) {
@@ -2948,9 +2960,21 @@ async function handleGetMany(
 		const filters = this.getNodeParameter('filters', itemIndex, {}) as IDataObject;
 		if (Object.keys(filters).length > 0) {
 			const filter = buildFilter(filters);
-			// Handle comma-separated IDs
-			if (filter.ids && typeof filter.ids === 'string') {
-				filter.ids = (filter.ids as string).split(',').map((id) => id.trim());
+			// Handle comma-separated ID fields
+			for (const idField of ['ids', 'project_ids']) {
+				if (filter[idField] && typeof filter[idField] === 'string') {
+					filter[idField] = (filter[idField] as string).split(',').map((id) => id.trim());
+				}
+			}
+			// Nest subject_type + subject_id into subject: { type, id }
+			if (filter.subject_type && filter.subject_id) {
+				filter.subject = { type: filter.subject_type, id: filter.subject_id };
+				delete filter.subject_type;
+				delete filter.subject_id;
+			}
+			// Wrap email filter as { type: 'primary', email: value } for contacts/companies .list
+			if (filter.email && typeof filter.email === 'string') {
+				filter.email = { type: 'primary', email: filter.email };
 			}
 			body.filter = filter;
 		}
