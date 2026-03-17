@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-03-17
+
+### Fixed
+
+- Webhook trigger crash "Cannot read properties of undefined (reading 'data')" caused by API returning 204 No Content on register/unregister
+- Webhook unregister sent `{ id }` but Teamleader API requires `{ url, types }`
+- Webhook register tried to read non-existent `id` from empty 204 response
+- Webhook lifecycle now correctly stores and uses `url` + `types` as identifier (Teamleader has no webhook IDs)
+- Changed event types are now detected and re-registered automatically
+
 ## [0.2.1] - 2026-03-16
 
 ### Fixed

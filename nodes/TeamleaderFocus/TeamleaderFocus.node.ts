@@ -593,11 +593,13 @@ export class TeamleaderFocus implements INodeType {
 						);
 					} else if (operation === 'get') {
 						const id = this.getNodeParameter('id', i) as string;
+						const infoBody: IDataObject = { id };
+						addIncludes('/contacts.info', infoBody);
 						responseData = await teamleaderApiRequest.call(
 							this,
 							'POST',
 							'/contacts.info',
-							{ id },
+							infoBody,
 						);
 					} else if (operation === 'getMany') {
 						responseData = await handleGetMany.call(this, i, '/contacts.list');
@@ -854,11 +856,13 @@ export class TeamleaderFocus implements INodeType {
 						);
 					} else if (operation === 'get') {
 						const id = this.getNodeParameter('id', i) as string;
+						const infoBody: IDataObject = { id };
+						addIncludes('/deals.info', infoBody);
 						responseData = await teamleaderApiRequest.call(
 							this,
 							'POST',
 							'/deals.info',
-							{ id },
+							infoBody,
 						);
 					} else if (operation === 'getMany') {
 						responseData = await handleGetMany.call(this, i, '/deals.list');
@@ -1216,11 +1220,12 @@ export class TeamleaderFocus implements INodeType {
 					} else if (operation === 'update') {
 						const body: IDataObject = { id: this.getNodeParameter('id', i) as string };
 						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
-						// Nest invoicee if customer fields provided
-						if (updateFields.customer_type && updateFields.customer_id) {
-							const invoicee: IDataObject = {
-								customer: { type: updateFields.customer_type, id: updateFields.customer_id },
-							};
+						// Nest invoicee if customer or for_attention_of fields provided
+						if (updateFields.customer_type || updateFields.for_attention_of_name || updateFields.for_attention_of_contact_id) {
+							const invoicee: IDataObject = {};
+							if (updateFields.customer_type && updateFields.customer_id) {
+								invoicee.customer = { type: updateFields.customer_type, id: updateFields.customer_id };
+							}
 							if (updateFields.for_attention_of_name) {
 								invoicee.for_attention_of = { name: updateFields.for_attention_of_name };
 							} else if (updateFields.for_attention_of_contact_id) {
@@ -2976,6 +2981,19 @@ async function handleGetMany(
 			if (filter.email && typeof filter.email === 'string') {
 				filter.email = { type: 'primary', email: filter.email };
 			}
+			// Unwrap fixedCollection filters (e.g. event attendee, link)
+			for (const fcField of ['attendee', 'link']) {
+				if (filter[fcField] && typeof filter[fcField] === 'object' && (filter[fcField] as IDataObject)[fcField]) {
+					const inner = (filter[fcField] as IDataObject)[fcField];
+					filter[fcField] = Array.isArray(inner) ? inner[0] : inner;
+				}
+			}
+			// Split comma-separated ID/type list fields into arrays
+			for (const listField of ['plannable_item_ids', 'types']) {
+				if (filter[listField] && typeof filter[listField] === 'string') {
+					filter[listField] = (filter[listField] as string).split(',').map((v) => v.trim());
+				}
+			}
 			body.filter = filter;
 		}
 	} catch {
@@ -3011,6 +3029,8 @@ function processContactCompanyFields(fields: IDataObject): IDataObject {
 			result.emails = [{ type: 'primary', email: value }];
 		} else if (key === 'telephone') {
 			result.telephones = [{ type: 'phone', number: value }];
+		} else if (key === 'website') {
+			result.websites = [{ type: 'primary', url: value }];
 		} else if (key === 'addressLine1' || key === 'postalCode' || key === 'city' || key === 'country') {
 			if (!result._address) result._address = {};
 			const addressMap: Record<string, string> = {
@@ -3107,7 +3127,9 @@ async function handleSimpleCrud(
 
 	// Default: just send ID
 	const id = this.getNodeParameter('id', itemIndex) as string;
-	return teamleaderApiRequest.call(this, 'POST', endpoint, { id });
+	const body: IDataObject = { id };
+	addIncludes(endpoint, body);
+	return teamleaderApiRequest.call(this, 'POST', endpoint, body);
 }
 
 interface OperationConfig {
@@ -3464,11 +3486,12 @@ function buildInvoiceUpdateBody(context: IExecuteFunctions, itemIndex: number): 
 			delete updateFields.payment_term_type;
 			delete updateFields.payment_term_days;
 		}
-		// Nest invoicee if customer fields provided
-		if (updateFields.customer_type && updateFields.customer_id) {
-			const invoicee: IDataObject = {
-				customer: { type: updateFields.customer_type, id: updateFields.customer_id },
-			};
+		// Nest invoicee if customer or for_attention_of fields provided
+		if (updateFields.customer_type || updateFields.for_attention_of_name || updateFields.for_attention_of_contact_id) {
+			const invoicee: IDataObject = {};
+			if (updateFields.customer_type && updateFields.customer_id) {
+				invoicee.customer = { type: updateFields.customer_type, id: updateFields.customer_id };
+			}
 			if (updateFields.for_attention_of_name) {
 				invoicee.for_attention_of = { name: updateFields.for_attention_of_name };
 			} else if (updateFields.for_attention_of_contact_id) {

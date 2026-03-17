@@ -37,6 +37,8 @@ const DATE_ONLY_FIELDS = new Set([
 	'due_on',
 	'due_before',
 	'due_after',
+	'due_by',
+	'due_from',
 	'due_date',
 	'day',
 	'date',
@@ -44,7 +46,35 @@ const DATE_ONLY_FIELDS = new Set([
 	'started_on',
 	'starts_after',
 	'ends_before',
+	'from',
+	'until',
 ]);
+
+/**
+ * Fields that the Teamleader API expects as full timestamps with +00:00 offset
+ * (not Z). Based on Make Teamleader Pro app formatDateTime() usage.
+ */
+const TIMESTAMP_FIELDS = new Set([
+	'started_at', 'ended_at',
+	'started_after', 'started_before', 'ended_after', 'ended_before',
+	'starts_at', 'ends_at',
+	'starts_before', 'ends_after',
+	'due_at',
+	'paid_at', 'sent_at',
+	'updated_since',
+	'created_before',
+]);
+
+/**
+ * Convert an ISO 8601 datetime string to Teamleader timestamp format
+ * (YYYY-MM-DDTHH:MM:SS+00:00). Returns the original value if not a valid date.
+ */
+function toTimestamp(value: string): string {
+	const date = new Date(value);
+	if (isNaN(date.getTime())) return value;
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}+00:00`;
+}
 
 /**
  * Convert an ISO 8601 datetime string to date-only (YYYY-MM-DD).
@@ -63,8 +93,16 @@ function sanitizeDateFields(obj: IDataObject): void {
 	for (const [key, value] of Object.entries(obj)) {
 		if (DATE_ONLY_FIELDS.has(key) && typeof value === 'string') {
 			obj[key] = toDateOnly(value);
+		} else if (TIMESTAMP_FIELDS.has(key) && typeof value === 'string') {
+			obj[key] = toTimestamp(value);
 		} else if (value && typeof value === 'object' && !Array.isArray(value)) {
 			sanitizeDateFields(value as IDataObject);
+		} else if (Array.isArray(value)) {
+			for (const item of value) {
+				if (item && typeof item === 'object' && !Array.isArray(item)) {
+					sanitizeDateFields(item as IDataObject);
+				}
+			}
 		}
 	}
 }
@@ -130,11 +168,14 @@ export async function teamleaderApiRequest(
 
 	for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
 		try {
-			return (await this.helpers.requestOAuth2.call(
+			const result = await this.helpers.requestOAuth2.call(
 				this,
 				'teamleaderFocusOAuth2Api',
 				options,
-			)) as IDataObject;
+			);
+			// 204 No Content returns undefined/empty string — normalise to empty object
+			if (!result) return {} as IDataObject;
+			return result as IDataObject;
 		} catch (error) {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const err = error as any;
@@ -176,9 +217,11 @@ export async function teamleaderApiRequest(
  */
 const ENDPOINT_INCLUDES: Record<string, string> = {
 	'/contacts.list': 'custom_fields,price_list',
+	'/contacts.info': 'custom_fields,price_list',
 	'/companies.list': 'custom_fields,price_list',
-	'/companies.info': 'related_companies,related_contacts',
+	'/companies.info': 'related_companies,related_contacts,custom_fields',
 	'/deals.list': 'custom_fields',
+	'/deals.info': 'custom_fields',
 	'/invoices.list': 'late_fees',
 	'/invoices.info': 'late_fees',
 	'/meetings.list': 'tracked_time,estimated_time',
@@ -255,6 +298,10 @@ export function buildFilter(
 	const filter: IDataObject = {};
 	for (const [key, value] of Object.entries(filterValues)) {
 		if (value !== undefined && value !== '' && value !== null) {
+			// Skip empty arrays (from multiOptions with no selection)
+			if (Array.isArray(value) && value.length === 0) {
+				continue;
+			}
 			filter[key] = value;
 		}
 	}

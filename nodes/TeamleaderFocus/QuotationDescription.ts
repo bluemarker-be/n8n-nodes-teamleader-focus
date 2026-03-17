@@ -40,7 +40,7 @@ export const quotationFields: INodeProperties[] = [
 		type: 'json',
 		default: '[]',
 		displayOptions: { show: { resource: ['quotation'], operation: ['create'] } },
-		description: 'Array of line item groups in JSON format. Optional for text-only quotations. Example: [{"section":{"title":"Section 1"},"line_items":[{"quantity":1,"description":"Item","unit_price":{"amount":100,"currency":"EUR"},"tax":{"rate":0.21}}]}]',
+		description: 'Array of line item groups in JSON format. Optional for text-only quotations. Example: [{"section":{"title":"Section 1"},"line_items":[{"quantity":1,"description":"Item","unit_price":{"amount":100,"tax":"excluding"},"tax_rate_id":"tax-rate-uuid"}]}]',
 	},
 	{
 		displayName: 'Additional Fields',
@@ -382,7 +382,7 @@ export const quotationFields: INodeProperties[] = [
 				name: 'grouped_lines',
 				type: 'json',
 				default: '[]',
-				description: 'Array of line item groups in JSON format. Example: [{"section":{"title":"Section 1"},"line_items":[{"quantity":1,"description":"Item","unit_price":{"amount":100,"currency":"EUR"},"tax":{"rate":0.21}}]}]',
+				description: 'Array of line item groups in JSON format. Example: [{"section":{"title":"Section 1"},"line_items":[{"quantity":1,"description":"Item","unit_price":{"amount":100,"tax":"excluding"},"tax_rate_id":"tax-rate-uuid"}]}]',
 			},
 			{
 				displayName: 'Document Template Name or ID',

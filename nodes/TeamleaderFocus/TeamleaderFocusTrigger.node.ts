@@ -140,6 +140,7 @@ export class TeamleaderFocusTrigger implements INodeType {
 		default: {
 			async checkExists(this: IHookFunctions): Promise<boolean> {
 				const webhookUrl = this.getNodeWebhookUrl('default');
+				const events = this.getNodeParameter('events') as string[];
 				const response = await teamleaderApiRequest.call(
 					this,
 					'POST',
@@ -148,8 +149,32 @@ export class TeamleaderFocusTrigger implements INodeType {
 				const webhooks = (response.data as IDataObject[]) ?? [];
 				for (const webhook of webhooks) {
 					if (webhook.url === webhookUrl) {
+						// Store url and types for unregister
 						const webhookData = this.getWorkflowStaticData('node');
-						webhookData.webhookId = webhook.id;
+						webhookData.webhookUrl = webhook.url as string;
+						webhookData.webhookTypes = webhook.types as string[];
+						// Check if the registered types match the configured events
+						const registeredTypes = (webhook.types as string[]) ?? [];
+						const typesMatch =
+							events.length === registeredTypes.length &&
+							events.every((e) => registeredTypes.includes(e));
+						if (!typesMatch) {
+							// Types changed — unregister old webhook so create() re-registers
+							try {
+								await teamleaderApiRequest.call(
+									this,
+									'POST',
+									'/webhooks.unregister',
+									{
+										url: webhook.url as string,
+										types: webhook.types as string[],
+									},
+								);
+							} catch {
+								// ignore unregister errors
+							}
+							return false;
+						}
 						return true;
 					}
 				}
@@ -160,7 +185,7 @@ export class TeamleaderFocusTrigger implements INodeType {
 				const webhookUrl = this.getNodeWebhookUrl('default') as string;
 				const events = this.getNodeParameter('events') as string[];
 
-				const response = await teamleaderApiRequest.call(
+				await teamleaderApiRequest.call(
 					this,
 					'POST',
 					'/webhooks.register',
@@ -170,28 +195,34 @@ export class TeamleaderFocusTrigger implements INodeType {
 					},
 				);
 
+				// Store url and types for unregister (API returns 204, no id)
 				const webhookData = this.getWorkflowStaticData('node');
-				webhookData.webhookId = (response.data as IDataObject)?.id;
+				webhookData.webhookUrl = webhookUrl;
+				webhookData.webhookTypes = events;
 				return true;
 			},
 
 			async delete(this: IHookFunctions): Promise<boolean> {
 				const webhookData = this.getWorkflowStaticData('node');
-				if (webhookData.webhookId) {
+				const webhookUrl = webhookData.webhookUrl as string;
+				const webhookTypes = webhookData.webhookTypes as string[];
+				if (webhookUrl && webhookTypes) {
 					try {
 						await teamleaderApiRequest.call(
 							this,
 							'POST',
 							'/webhooks.unregister',
 							{
-								id: webhookData.webhookId as string,
+								url: webhookUrl,
+								types: webhookTypes,
 							},
 						);
 					} catch {
 						return false;
 					}
 				}
-				delete webhookData.webhookId;
+				delete webhookData.webhookUrl;
+				delete webhookData.webhookTypes;
 				return true;
 			},
 		},

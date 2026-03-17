@@ -118,7 +118,7 @@ export const subscriptionFields: INodeProperties[] = [
 		required: true,
 		default: '[]',
 		displayOptions: { show: { resource: ['subscription'], operation: ['create'] } },
-		description: 'Array of line item groups in JSON format. Example: [{"section":{"title":"Section 1"},"line_items":[{"quantity":1,"description":"Item","unit_price":{"amount":100,"currency":"EUR"},"tax":{"rate":0.21}}]}]',
+		description: 'Array of line item groups in JSON format. Example: [{"section":{"title":"Section 1"},"line_items":[{"quantity":1,"description":"Item","unit_price":{"amount":100,"tax":"excluding"},"tax_rate_id":"tax-rate-uuid"}]}]',
 	},
 	{
 		displayName: 'Payment Term Type',
@@ -418,7 +418,7 @@ export const subscriptionFields: INodeProperties[] = [
 				name: 'grouped_lines',
 				type: 'json',
 				default: '',
-				description: 'Array of line item groups in JSON format. Example: [{"section":{"title":"Section 1"},"line_items":[{"quantity":1,"description":"Item","unit_price":{"amount":100,"currency":"EUR"},"tax":{"rate":0.21}}]}]',
+				description: 'Array of line item groups in JSON format. Example: [{"section":{"title":"Section 1"},"line_items":[{"quantity":1,"description":"Item","unit_price":{"amount":100,"tax":"excluding"},"tax_rate_id":"tax-rate-uuid"}]}]',
 			},
 			{
 				displayName: 'Ends On',
