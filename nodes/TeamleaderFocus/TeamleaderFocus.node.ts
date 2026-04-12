@@ -3376,6 +3376,14 @@ function buildInvoiceBody(context: IExecuteFunctions, itemIndex: number): IDataO
 		}
 		delete additionalFields.expected_payment_method_method;
 		delete additionalFields.expected_payment_method_reference;
+		// Build delivery_information from flat field
+		if (additionalFields.delivery_information_days !== undefined) {
+			body.delivery_information = {
+				type: 'set_days_after_invoice_date',
+				number_of_days_after_invoice_date: additionalFields.delivery_information_days,
+			};
+			delete additionalFields.delivery_information_days;
+		}
 		assignDefined(body, additionalFields);
 	} catch {
 		// No additional fields
@@ -3602,6 +3610,14 @@ function buildInvoiceUpdateBookedBody(context: IExecuteFunctions, itemIndex: num
 			if (updateFields.payment_term_days !== undefined) (body.payment_term as IDataObject).days = updateFields.payment_term_days;
 			delete updateFields.payment_term_type;
 			delete updateFields.payment_term_days;
+		}
+		// Build delivery_information from flat field
+		if (updateFields.delivery_information_days !== undefined) {
+			body.delivery_information = {
+				type: 'set_days_after_invoice_date',
+				number_of_days_after_invoice_date: updateFields.delivery_information_days,
+			};
+			delete updateFields.delivery_information_days;
 		}
 		assignDefined(body, updateFields);
 	} catch {
