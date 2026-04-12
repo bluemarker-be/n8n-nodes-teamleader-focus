@@ -1546,10 +1546,13 @@ export class TeamleaderFocus implements INodeType {
 						}
 						delete additionalFields.customer_type;
 						delete additionalFields.customer_id;
-						// Nest location if provided
-						const location = buildLocationObject(additionalFields);
-						if (location) body.location = location;
-						deleteLocationFields(additionalFields);
+						// Nest location if provided (from fixedCollection)
+						const locationParam = this.getNodeParameter('location', i) as IDataObject;
+						const locationData = locationParam?.locationData as IDataObject | undefined;
+						if (locationData) {
+							const location = buildLocationObject(locationData);
+							if (location) body.location = location;
+						}
 						assignDefined(body, additionalFields);
 						addCustomFieldsToBody.call(this, body, i);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/meetings.schedule', body);
@@ -1574,10 +1577,13 @@ export class TeamleaderFocus implements INodeType {
 							delete updateFields.customer_type;
 							delete updateFields.customer_id;
 						}
-						// Nest location if provided
-						const location = buildLocationObject(updateFields);
-						if (location) body.location = location;
-						deleteLocationFields(updateFields);
+						// Nest location if provided (from fixedCollection)
+						const locationParam = this.getNodeParameter('location', i) as IDataObject;
+						const locationData = locationParam?.locationData as IDataObject | undefined;
+						if (locationData) {
+							const location = buildLocationObject(locationData);
+							if (location) body.location = location;
+						}
 						assignDefined(body, updateFields);
 						addCustomFieldsToBody.call(this, body, i, true);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/meetings.update', body);
@@ -3280,14 +3286,14 @@ function buildQuotationUpdateBody(context: IExecuteFunctions, itemIndex: number)
 }
 
 function buildLocationObject(fields: IDataObject): IDataObject | undefined {
-	const locationType = fields.location_type as string | undefined;
+	const locationType = fields.type as string | undefined;
 	if (!locationType) return undefined;
 
 	const address: IDataObject = {};
-	if (fields.location_line_1) address.line_1 = fields.location_line_1;
-	if (fields.location_postal_code) address.postal_code = fields.location_postal_code;
-	if (fields.location_city) address.city = fields.location_city;
-	if (fields.location_country) address.country = fields.location_country;
+	if (fields.line_1) address.line_1 = fields.line_1;
+	if (fields.postal_code) address.postal_code = fields.postal_code;
+	if (fields.city) address.city = fields.city;
+	if (fields.country) address.country = fields.country;
 
 	const hasAddress = Object.keys(address).length > 0;
 
@@ -3299,7 +3305,7 @@ function buildLocationObject(fields: IDataObject): IDataObject | undefined {
 		case 'contact':
 		case 'company':
 			location = { type: locationType };
-			if (fields.location_id) location.id = fields.location_id;
+			if (fields.id) location.id = fields.id;
 			if (hasAddress) location.address = address;
 			break;
 		case 'customLocation':
@@ -3308,21 +3314,12 @@ function buildLocationObject(fields: IDataObject): IDataObject | undefined {
 			break;
 		case 'calendarResource':
 			location = { type: 'calendarResource' };
-			if (fields.location_id) location.id = fields.location_id;
+			if (fields.id) location.id = fields.id;
 			break;
 		default:
 			location = { type: locationType };
 	}
 	return location;
-}
-
-function deleteLocationFields(fields: IDataObject): void {
-	delete fields.location_type;
-	delete fields.location_id;
-	delete fields.location_line_1;
-	delete fields.location_postal_code;
-	delete fields.location_city;
-	delete fields.location_country;
 }
 
 function buildInvoiceBody(context: IExecuteFunctions, itemIndex: number): IDataObject {
