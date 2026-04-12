@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-04-12
+
+### Added
+
+- Meeting: `project_id` and `group_id` fields for linking meetings to projects and groups (schedule + update)
+- Invoice: `delivery_information` field for specifying delivery days after invoice date (draft + update booked)
+
+### Changed
+
+- API spec updated to v1.136.0
+- Meeting: `location` field refactored from plain string to structured object supporting 5 location types (Virtual, Contact, Company, Custom Location, Calendar Resource) with proper address fields
+
+### Removed
+
+- Meeting: `milestone_id` field (deprecated — linked to legacy projects being phased out)
+
 ## [0.2.2] - 2026-03-17
 
 ### Fixed
