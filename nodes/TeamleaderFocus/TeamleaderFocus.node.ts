@@ -1660,6 +1660,8 @@ export class TeamleaderFocus implements INodeType {
 						assignDefined(body, updateFields);
 						addCustomFieldsToBody.call(this, body, i, true);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/calls.update', body);
+					} else if (operation === 'delete') {
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/calls.delete', { id: this.getNodeParameter('id', i) as string });
 					}
 				}
 
@@ -2372,6 +2374,15 @@ export class TeamleaderFocus implements INodeType {
 						const filters = this.getNodeParameter('filters', i, {}) as IDataObject;
 						if (Object.keys(filters).length) body.filter = buildFilter(filters);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/users.listDaysOff', body);
+					} else if (operation === 'listSchedules') {
+						const body: IDataObject = {
+							filter: {
+								user_ids: this.getNodeParameter('userIds', i) as string[],
+								from: this.getNodeParameter('from', i) as string,
+								until: this.getNodeParameter('until', i) as string,
+							},
+						};
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/userSchedules.list', body);
 					}
 				}
 
@@ -3335,8 +3346,10 @@ function buildLocationObject(fields: IDataObject): IDataObject | undefined {
 			if (fields.id) location.id = fields.id;
 			if (hasAddress) location.address = address;
 			break;
+		case 'address':
 		case 'customLocation':
-			location = { type: 'customLocation' };
+			// customLocation was replaced by "address" in the API — auto-migrate legacy workflows
+			location = { type: 'address' };
 			if (hasAddress) location.address = address;
 			break;
 		case 'calendarResource':

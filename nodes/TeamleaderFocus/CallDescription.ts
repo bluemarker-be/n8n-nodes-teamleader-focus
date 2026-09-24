@@ -10,6 +10,7 @@ export const callOperations: INodeProperties[] = [
 		options: [
 			{ name: 'Add', value: 'add', action: 'Add a call' },
 			{ name: 'Complete', value: 'complete', action: 'Complete a call' },
+			{ name: 'Delete', value: 'delete', action: 'Delete a call' },
 			{ name: 'Get', value: 'get', action: 'Get a call' },
 			{ name: 'Get Many', value: 'getMany', action: 'Get many calls' },
 			{ name: 'Update', value: 'update', action: 'Update a call' },
@@ -99,7 +100,7 @@ export const callFields: INodeProperties[] = [
 		required: true,
 		default: '',
 		displayOptions: {
-			show: { resource: ['call'], operation: ['get', 'complete', 'update'] },
+			show: { resource: ['call'], operation: ['get', 'complete', 'update', 'delete'] },
 		},
 		description: 'The ID of the call',
 	},

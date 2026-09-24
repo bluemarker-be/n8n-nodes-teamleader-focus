@@ -11,8 +11,13 @@ export const userOperations: INodeProperties[] = [
 			{ name: 'Get', value: 'get', action: 'Get a user' },
 			{ name: 'Get Current', value: 'getCurrent', action: 'Get current user' },
 			{ name: 'Get Many', value: 'getMany', action: 'Get many users' },
-			{ name: 'Get Week Schedule', value: 'getWeekSchedule', action: 'Get week schedule' },
+			{
+				name: 'Get Week Schedule (Deprecated)',
+				value: 'getWeekSchedule',
+				action: 'Get week schedule (deprecated)',
+			},
 			{ name: 'List Days Off', value: 'listDaysOff', action: 'List days off for user' },
+			{ name: 'List Schedules', value: 'listSchedules', action: 'List schedules for users' },
 		],
 		default: 'getCurrent',
 	},
@@ -68,5 +73,38 @@ export const userFields: INodeProperties[] = [
 				default: '',
 			},
 		],
+	},
+
+	// ----------------------------------
+	//         user: listSchedules
+	// ----------------------------------
+	{
+		displayName: 'User Names or IDs',
+		name: 'userIds',
+		type: 'multiOptions',
+		typeOptions: { loadOptionsMethod: 'getUsers' },
+		required: true,
+		default: [],
+		displayOptions: { show: { resource: ['user'], operation: ['listSchedules'] } },
+		description:
+			'The users whose working schedules to return. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+	},
+	{
+		displayName: 'From',
+		name: 'from',
+		type: 'dateTime',
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['user'], operation: ['listSchedules'] } },
+		description: 'Start of the date range (inclusive)',
+	},
+	{
+		displayName: 'Until',
+		name: 'until',
+		type: 'dateTime',
+		required: true,
+		default: '',
+		displayOptions: { show: { resource: ['user'], operation: ['listSchedules'] } },
+		description: 'End of the date range (inclusive). Must be on or after From, and the range may span at most 7 days.',
 	},
 ];

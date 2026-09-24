@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-09-24
+
+_Session 2 — new operations and location-type migration._
+
+### Added
+
+- **Call — Delete** operation (API May 2026)
+- **User — List Schedules** operation (`userSchedules.list`, API Jun 2026): batch working-schedule query for multiple users over a date range of up to 7 days. Replaces the single-user Get Week Schedule.
+- **Deal Pipeline — filters** on Get Many: `ids`, `statuses` (open, pending_deletion), `term` (searches pipeline name) (API Aug 2026)
+- **Meeting — Location type "Address"** (API Apr 2026): new preferred inline-address type. The legacy `Custom Location` type is kept in the UI as `Custom Location (Legacy)` and auto-migrates to `type: address` in the API request, so existing workflows keep working without changes.
+
+### Changed
+
+- **User — Get Week Schedule** relabeled to `Get Week Schedule (Deprecated)` — Teamleader deprecated this in favor of the new List Schedules operation. Existing workflows continue to work.
+
+### Notes
+
+- **Meeting — `online_meeting_room` → `customer_meeting_room` response rename** (API Apr 2026) — no code change needed; node passes raw API responses through, so the rename is picked up automatically.
+
 ## [0.2.5] - 2026-09-24
 
 _Spec-conformance hotfix — three pre-existing enum/handler gaps surfaced during the 0.2.4 spec review._

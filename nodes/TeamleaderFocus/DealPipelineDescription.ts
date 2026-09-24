@@ -71,4 +71,38 @@ export const dealPipelineFields: INodeProperties[] = [
 			show: { resource: ['dealPipeline'], operation: ['getMany'], returnAll: [false] },
 		},
 	},
+	{
+		displayName: 'Filters',
+		name: 'filters',
+		type: 'collection',
+		placeholder: 'Add Filter',
+		default: {},
+		displayOptions: { show: { resource: ['dealPipeline'], operation: ['getMany'] } },
+		options: [
+			{
+				displayName: 'IDs',
+				name: 'ids',
+				type: 'string',
+				default: '',
+				description: 'Comma-separated list of pipeline IDs',
+			},
+			{
+				displayName: 'Statuses',
+				name: 'status',
+				type: 'multiOptions',
+				options: [
+					{ name: 'Open', value: 'open' },
+					{ name: 'Pending Deletion', value: 'pending_deletion' },
+				],
+				default: [],
+			},
+			{
+				displayName: 'Term',
+				name: 'term',
+				type: 'string',
+				default: '',
+				description: 'Search in pipeline name',
+			},
+		],
+	},
 ];
