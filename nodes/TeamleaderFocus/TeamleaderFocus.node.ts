@@ -2402,13 +2402,13 @@ export class TeamleaderFocus implements INodeType {
 					if (operation === 'get') {
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/files.info', { id: this.getNodeParameter('id', i) as string });
 					} else if (operation === 'getMany') {
+						const listSubjectType = this.getNodeParameter('subjectType', i) as string;
+						const listSubject: IDataObject = { type: listSubjectType };
+						if (listSubjectType !== 'temporary') {
+							listSubject.id = this.getNodeParameter('subjectId', i, '') as string;
+						}
 						responseData = await handleGetMany.call(this, i, '/files.list', {
-							filter: {
-								subject: {
-									type: this.getNodeParameter('subjectType', i) as string,
-									id: this.getNodeParameter('subjectId', i) as string,
-								},
-							},
+							filter: { subject: listSubject },
 						});
 					} else if (operation === 'delete') {
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/files.delete', { id: this.getNodeParameter('id', i) as string });
@@ -2456,12 +2456,14 @@ export class TeamleaderFocus implements INodeType {
 						const actualFileName = fileNameOverride || binaryData.fileName || 'file';
 
 						// Step 2: Get presigned upload URL from Teamleader
+						const uploadSubjectType = this.getNodeParameter('subjectType', i) as string;
+						const uploadSubject: IDataObject = { type: uploadSubjectType };
+						if (uploadSubjectType !== 'temporary') {
+							uploadSubject.id = this.getNodeParameter('subjectId', i, '') as string;
+						}
 						const uploadResponse = await teamleaderApiRequest.call(this, 'POST', '/files.upload', {
 							name: actualFileName,
-							subject: {
-								type: this.getNodeParameter('subjectType', i) as string,
-								id: this.getNodeParameter('subjectId', i) as string,
-							},
+							subject: uploadSubject,
 						});
 						const uploadUrl = ((uploadResponse.data as IDataObject).location as string);
 

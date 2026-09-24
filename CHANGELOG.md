@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-09-24
+
+_Spec-conformance hotfix — three pre-existing enum/handler gaps surfaced during the 0.2.4 spec review._
+
+### Fixed
+
+- **File — subject types** now match the API spec exactly:
+  - Added missing types: `invoice`, `creditNote`, `nextgenProject`
+  - Removed `project` (never valid per API spec, legacy leftover)
+  - Full accepted enum: `company, contact, creditNote, deal, invoice, nextgenProject, ticket, temporary`
+- **File — Upload with `temporary`** subject type: handler now omits `subject.id` per spec (spec: "Not required if type is temporary"). Subject ID field is hidden in the UI when Temporary is selected.
+- **Expense — sort field**: removed `created_at` (never valid per API spec). Only `document_date`, `due_date`, `supplier_name` accepted.
+
+### Changed
+
+- **Quotation — Name** field description now documents the API constraints (1-80 chars, rejected characters, auto-generation fallback on create)
+
 ## [0.2.4] - 2026-09-24
 
 _Session 1 of the 2026 API-changelog coverage sweep — quick wins & small fields (based on API spec v1.220)._

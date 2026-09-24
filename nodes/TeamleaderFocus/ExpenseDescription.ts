@@ -176,7 +176,6 @@ export const expenseFields: INodeProperties[] = [
 					{ name: 'Document Date', value: 'document_date' },
 					{ name: 'Due Date', value: 'due_date' },
 					{ name: 'Supplier Name', value: 'supplier_name' },
-					{ name: 'Created At', value: 'created_at' },
 				],
 				default: 'document_date',
 			},

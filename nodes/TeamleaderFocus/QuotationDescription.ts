@@ -55,7 +55,7 @@ export const quotationFields: INodeProperties[] = [
 				name: 'name',
 				type: 'string',
 				default: '',
-				description: 'Name/title of the quotation',
+				description: 'Name/title of the quotation. 1-80 characters, letters/digits/limited punctuation only (rejected: / \\ * ? &lt; &gt; |). If omitted on create, auto-generated from the quotation number.',
 			},
 			{
 				displayName: 'Document Template Name or ID',
@@ -389,7 +389,7 @@ export const quotationFields: INodeProperties[] = [
 				name: 'name',
 				type: 'string',
 				default: '',
-				description: 'Name/title of the quotation',
+				description: 'Name/title of the quotation. 1-80 characters, letters/digits/limited punctuation only (rejected: / \\ * ? &lt; &gt; |). If omitted on create, auto-generated from the quotation number.',
 			},
 			{
 				displayName: 'Grouped Lines (JSON)',
