@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.3] - 2026-04-12
 
+_First public release under the `@bluemarker` scope, published 2026-09-24. Repository moved to `github.com/bluemarker-be/n8n-nodes-teamleader-focus`._
+
 ### Added
 
 - Meeting: `project_id` and `group_id` fields for linking meetings to projects and groups (schedule + update)

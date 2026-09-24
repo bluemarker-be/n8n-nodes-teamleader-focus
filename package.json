@@ -1,18 +1,25 @@
 {
-	"name": "n8n-nodes-teamleader-focus",
+	"name": "@bluemarker/n8n-nodes-teamleader-focus",
 	"version": "0.2.3",
 	"description": "n8n community node for Teamleader Focus",
 	"keywords": [
-		"n8n-community-node-package"
+		"n8n-community-node-package",
+		"n8n",
+		"teamleader",
+		"teamleader-focus",
+		"crm",
+		"invoicing"
 	],
 	"license": "MIT",
-	"homepage": "",
+	"homepage": "https://github.com/bluemarker-be/n8n-nodes-teamleader-focus",
 	"author": {
-		"name": "Operative"
+		"name": "Henk de Blauw",
+		"email": "henk@bluemarker.be",
+		"website": "https://www.bluemarker.be"
 	},
 	"repository": {
 		"type": "git",
-		"url": ""
+		"url": "git+https://github.com/bluemarker-be/n8n-nodes-teamleader-focus.git"
 	},
 	"main": "index.js",
 	"scripts": {
