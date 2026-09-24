@@ -105,6 +105,15 @@ export const dealFields: INodeProperties[] = [
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
 			{
+				displayName: 'Second Responsible User Name or ID',
+				name: 'second_responsible_user_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getUsers' },
+				default: '',
+				description:
+					'Optional second responsible user. Requires the "second deal responsible" feature to be enabled on your Teamleader account (contact support.focus@teamleader.eu). Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+			},
+			{
 				displayName: 'Phase Name or ID',
 				name: 'phase_id',
 				type: 'options',
@@ -119,7 +128,7 @@ export const dealFields: INodeProperties[] = [
 				type: 'number',
 				typeOptions: { numberPrecision: 2 },
 				default: 0,
-				description: 'The estimated monetary value of the deal',
+				description: 'The estimated monetary value of the deal. May be negative (e.g. when linked to a negative quotation).',
 			},
 			{
 				displayName: 'Estimated Value Currency',
@@ -141,6 +150,12 @@ export const dealFields: INodeProperties[] = [
 				displayName: 'Estimated Closing Date',
 				name: 'estimated_closing_date',
 				type: 'dateTime',
+				default: '',
+			},
+			{
+				displayName: 'Purchase Order Number',
+				name: 'purchase_order_number',
+				type: 'string',
 				default: '',
 			},
 			{
@@ -264,6 +279,15 @@ export const dealFields: INodeProperties[] = [
 				default: '',
 				description:
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Second Responsible User Name or ID',
+				name: 'second_responsible_user_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getUsers' },
+				default: '',
+				description:
+					'Optional second responsible user. Requires the "second deal responsible" feature to be enabled on your Teamleader account (contact support.focus@teamleader.eu). Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 			},
 			{
 				displayName: 'Status',
@@ -410,12 +434,21 @@ export const dealFields: INodeProperties[] = [
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
 			{
+				displayName: 'Second Responsible User Name or ID',
+				name: 'second_responsible_user_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getUsers' },
+				default: '',
+				description:
+					'Optional second responsible user. Requires the "second deal responsible" feature to be enabled on your Teamleader account (contact support.focus@teamleader.eu). Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+			},
+			{
 				displayName: 'Estimated Value Amount',
 				name: 'estimated_value_amount',
 				type: 'number',
 				typeOptions: { numberPrecision: 2 },
 				default: 0,
-				description: 'The estimated monetary value of the deal',
+				description: 'The estimated monetary value of the deal. May be negative (e.g. when linked to a negative quotation).',
 			},
 			{
 				displayName: 'Estimated Value Currency',
@@ -437,6 +470,12 @@ export const dealFields: INodeProperties[] = [
 				displayName: 'Estimated Closing Date',
 				name: 'estimated_closing_date',
 				type: 'dateTime',
+				default: '',
+			},
+			{
+				displayName: 'Purchase Order Number',
+				name: 'purchase_order_number',
+				type: 'string',
 				default: '',
 			},
 			{

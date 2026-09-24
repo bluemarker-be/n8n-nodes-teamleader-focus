@@ -1210,6 +1210,14 @@ export class TeamleaderFocus implements INodeType {
 						}
 						delete additionalFields.for_attention_of_name;
 						delete additionalFields.for_attention_of_contact_id;
+						// Build delivery_information from flat field
+						if (additionalFields.delivery_information_days !== undefined) {
+							body.delivery_information = {
+								type: 'set_days_after_invoice_date',
+								number_of_days_after_invoice_date: additionalFields.delivery_information_days,
+							};
+							delete additionalFields.delivery_information_days;
+						}
 						assignDefined(body, additionalFields);
 						addCustomFieldsToBody.call(this, body, i);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/subscriptions.create', body);
@@ -1285,6 +1293,14 @@ export class TeamleaderFocus implements INodeType {
 								body[nullableField] = null;
 								delete updateFields[nullableField];
 							}
+						}
+						// Build delivery_information from flat field
+						if (updateFields.delivery_information_days !== undefined) {
+							body.delivery_information = {
+								type: 'set_days_after_invoice_date',
+								number_of_days_after_invoice_date: updateFields.delivery_information_days,
+							};
+							delete updateFields.delivery_information_days;
 						}
 						assignDefined(body, updateFields);
 						addCustomFieldsToBody.call(this, body, i, true);

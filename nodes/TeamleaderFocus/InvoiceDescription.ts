@@ -221,6 +221,18 @@ export const invoiceFields: INodeProperties[] = [
 				default: '',
 			},
 			{
+				displayName: 'Invoice Content',
+				name: 'invoice_content',
+				type: 'options',
+				options: [
+					{ name: 'Goods', value: 'goods' },
+					{ name: 'Services', value: 'services' },
+					{ name: 'Goods and Services', value: 'goods_and_services' },
+				],
+				default: 'goods_and_services',
+				description: 'Whether the invoice is for goods, services, or both. Required when the department and the customer\'s invoicing address are both in France and the account sends invoices via Peppol from France.',
+			},
+			{
 				displayName: 'Delivery Days After Invoice Date',
 				name: 'delivery_information_days',
 				type: 'number',
@@ -586,6 +598,18 @@ export const invoiceFields: INodeProperties[] = [
 				default: '',
 			},
 			{
+				displayName: 'Invoice Content',
+				name: 'invoice_content',
+				type: 'options',
+				options: [
+					{ name: 'Goods', value: 'goods' },
+					{ name: 'Services', value: 'services' },
+					{ name: 'Goods and Services', value: 'goods_and_services' },
+				],
+				default: 'goods_and_services',
+				description: 'Whether the invoice is for goods, services, or both. Required when the department and the customer\'s invoicing address are both in France and the account sends invoices via Peppol from France.',
+			},
+			{
 				displayName: 'Customer Type',
 				name: 'customer_type',
 				type: 'options',
@@ -721,6 +745,18 @@ export const invoiceFields: INodeProperties[] = [
 				name: 'purchase_order_number',
 				type: 'string',
 				default: '',
+			},
+			{
+				displayName: 'Invoice Content',
+				name: 'invoice_content',
+				type: 'options',
+				options: [
+					{ name: 'Goods', value: 'goods' },
+					{ name: 'Services', value: 'services' },
+					{ name: 'Goods and Services', value: 'goods_and_services' },
+				],
+				default: 'goods_and_services',
+				description: 'Whether the invoice is for goods, services, or both. Required when the department and the customer\'s invoicing address are both in France and the account sends invoices via Peppol from France.',
 			},
 			{
 				displayName: 'Delivery Days After Invoice Date',

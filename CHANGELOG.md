@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-09-24
+
+_Session 3 — Deals + Subscriptions + Invoices expansion._
+
+### Added
+
+- **Deal — Create / Update**:
+  - `purchase_order_number` field (API May 2026)
+  - `second_responsible_user_id` field with user picker (API Sep 2026) — requires the "second deal responsible" feature to be enabled by Teamleader support
+- **Deal — Get / Get Many**: `second_responsible_user` added to `includes=` — the field is returned in the response when the feature is enabled. If your account does not have this feature, this include may be silently ignored or (potentially) reject the request; open an issue if you hit errors.
+- **Subscription — Create / Update**:
+  - `purchase_order_number` field (API Mar 2026)
+  - `delivery_information_days` field, transformed into `delivery_information: { type: 'set_days_after_invoice_date', number_of_days_after_invoice_date }` (same pattern as invoices) (API Mar 2026)
+  - `invoice_content` field (goods / services / goods_and_services) (API Sep 2026)
+- **Invoice — Draft / Update / Update Booked**: `invoice_content` field (API Sep 2026)
+
+### Changed
+
+- **Deal — Estimated Value Amount**: description now notes that negative values are allowed (e.g. when the deal is linked to a negative quotation) (API Aug 2026 — no code change was needed since the UI never enforced `minValue: 0`)
+
+### Notes
+
+- The `subscription` field on `invoices.list` response and the `purchase_order_number` / `delivery_information` response fields on subscriptions are picked up automatically via raw API-response passthrough (no code change).
+
 ## [0.2.6] - 2026-09-24
 
 _Session 2 — new operations and location-type migration._
