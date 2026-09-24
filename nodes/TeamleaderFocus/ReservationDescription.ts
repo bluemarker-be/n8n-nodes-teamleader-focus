@@ -160,6 +160,27 @@ export const reservationFields: INodeProperties[] = [
 				description: 'Comma-separated list of plannable item IDs',
 			},
 			{
+				displayName: 'Project IDs',
+				name: 'project_ids',
+				type: 'string',
+				default: '',
+				description: 'Comma-separated list of project IDs',
+			},
+			{
+				displayName: 'Work Type IDs',
+				name: 'work_type_ids',
+				type: 'string',
+				default: '',
+				description: 'Comma-separated list of work type IDs',
+			},
+			{
+				displayName: 'Term',
+				name: 'term',
+				type: 'string',
+				default: '',
+				description: 'Search term (matches reservation title)',
+			},
+			{
 				displayName: 'Start Date',
 				name: 'start_date',
 				type: 'dateTime',

@@ -98,8 +98,9 @@ export const projectMaterialFields: INodeProperties[] = [
 				name: 'billing_method',
 				type: 'options',
 				options: [
-					{ name: 'Time & Materials', value: 'time_and_materials' },
+					{ name: 'Unit Price', value: 'unit_price' },
 					{ name: 'Fixed Price', value: 'fixed_price' },
+					{ name: 'Parent Fixed Price', value: 'parent_fixed_price' },
 					{ name: 'Non-Billable', value: 'non_billable' },
 				],
 				default: 'time_and_materials',

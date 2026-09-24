@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-09-24
+
+_Session 4 — the "rest bucket": field additions across 10+ resources, plus a new Deal Source resource and Peppol webhook events._
+
+### Added
+
+- **Deal Source — new resource** (API Aug 2026): `Get Many` operation with `term` filter (searches source name)
+- **Webhook Trigger — 4 new Peppol events** (API Jan 2026): `invoice.peppolSubmissionSucceeded`, `invoice.peppolSubmissionFailed`, `creditNote.peppolSubmissionSucceeded`, `creditNote.peppolSubmissionFailed`. Added to both the Trigger node's event picker and the Webhook (register/unregister) resource's event enum.
+- **Day Off — Import**: new `Date (Full Day)` field per day item (API Aug 2026), alternative to `Starts At` + `Ends At`. When set, the entry is stored as a full day off; the handler prefers `date` over the range when both are provided.
+- **Project — Update**: 5 initial-baseline fields for imported projects (API May 2026)
+  - `initial_time_tracked` (value + unit: hours/minutes/seconds), transformed to `{value, unit}`
+  - `initial_price` (amount + currency), transformed to Money `{amount, currency}`
+  - `initial_cost` (amount + currency), same
+  - `initial_amount_billed` (amount + currency), same
+  - `initial_amount_paid` (amount + currency), same
+- **Project Material — Create**: `Parent Fixed Price` as new billing method (API Apr 2026)
+
+### Fixed
+
+- **Project Material — Billing Method**: enum values corrected to match API spec. Was `[time_and_materials, fixed_price, non_billable]` (invalid — `time_and_materials` is a Project-level value, materials use `unit_price`). Now: `[unit_price, fixed_price, parent_fixed_price, non_billable]`. Existing workflows using `time_and_materials` on materials were already rejected by the API — no functional regression.
+- **Reservation — Get Many filters** (API May 2026): `project_ids` (comma-sep), `work_type_ids` (comma-sep), `term`
+- **Ticket — Create / Update**: `project_id` field for linking to nextgen projects (mutually exclusive with legacy `milestone_id`) (API Jun 2026)
+- **Ticket — Get Many filter** (API Aug 2026): `assignee_ids` (multi-select users). Includes note on using `null` via expression to match unassigned tickets
+- **Contact — Create / Update**: `price_list_id` field with price-list picker (API Jul 2026). On Update, leaving empty sends `null` to unlink
+- **Contact — Get Many filter**: `company_id` description clarifies that null (via expression) matches contacts linked to no company at all (API Aug 2026)
+- **Company — Create / Update**: `price_list_id` field with price-list picker (API Jul 2026)
+- **Time Tracking — Get Many filter**: `relates_to` (type + id), with new API values `nextgenProject` and `nextgenProjectGroup` alongside legacy `milestone` and `project` (API Feb 2026)
+- **Note — Delete** operation (API Jun 2026) — was previously missing despite the API supporting it
+
+### Changed
+
+- `handleGetMany`: `work_type_ids` now auto-splits from comma-separated string to array (same treatment as `plannable_item_ids`, `types`)
+- `nestMoneyFields`: extended to include the 4 initial-price Money fields for projects
+
 ## [0.2.8] - 2026-09-24
 
 _Documentation release — README overhaul._

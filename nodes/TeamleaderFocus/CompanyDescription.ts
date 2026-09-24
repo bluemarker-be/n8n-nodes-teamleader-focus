@@ -128,6 +128,15 @@ export const companyFields: INodeProperties[] = [
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
 			{
+				displayName: 'Price List Name or ID',
+				name: 'price_list_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getPriceLists' },
+				default: '',
+				description:
+					'Link the company to a price list. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+			},
+			{
 				displayName: 'Remarks',
 				name: 'remarks',
 				type: 'string',
@@ -464,6 +473,15 @@ export const companyFields: INodeProperties[] = [
 				default: '',
 				description:
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Price List Name or ID',
+				name: 'price_list_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getPriceLists' },
+				default: '',
+				description:
+					'Link the company to a price list. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 			},
 		],
 	},

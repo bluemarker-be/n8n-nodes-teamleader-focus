@@ -241,6 +241,26 @@ export const timeTrackingFields: INodeProperties[] = [
 				default: '',
 				description: 'ID of the subject to filter by',
 			},
+			{
+				displayName: 'Relates To Type',
+				name: 'relates_to_type',
+				type: 'options',
+				options: [
+					{ name: 'Milestone (Legacy)', value: 'milestone' },
+					{ name: 'Project (Legacy)', value: 'project' },
+					{ name: 'Nextgen Project', value: 'nextgenProject' },
+					{ name: 'Nextgen Project Group', value: 'nextgenProjectGroup' },
+				],
+				default: 'nextgenProject',
+				description: 'Type of the entity to find all tracked time linked directly and indirectly to. Combine with Relates To ID.',
+			},
+			{
+				displayName: 'Relates To ID',
+				name: 'relates_to_id',
+				type: 'string',
+				default: '',
+				description: 'ID of the entity to filter by. Combine with Relates To Type.',
+			},
 		],
 	},
 	{

@@ -89,6 +89,13 @@ export const ticketFields: INodeProperties[] = [
 				description:
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
+			{
+				displayName: 'Project ID',
+				name: 'project_id',
+				type: 'string',
+				default: '',
+				description: 'Link this ticket to a nextgen project. Mutually exclusive with milestone_id (legacy projects).',
+			},
 		],
 	},
 	{
@@ -191,6 +198,15 @@ export const ticketFields: INodeProperties[] = [
 				default: '',
 				description: 'Comma-separated list of project IDs to filter on',
 			},
+			{
+				displayName: 'Assignee User Names or IDs',
+				name: 'assignee_ids',
+				type: 'multiOptions',
+				typeOptions: { loadOptionsMethod: 'getUsers' },
+				default: [],
+				description:
+					'Filter by one or more assignee user IDs. Choose from the list, or specify IDs using an <a href="https://docs.n8n.io/code/expressions/">expression</a>. Include a null entry (via expression) to also match unassigned tickets.',
+			},
 		],
 	},
 
@@ -228,6 +244,13 @@ export const ticketFields: INodeProperties[] = [
 				default: '',
 				description:
 					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
+			},
+			{
+				displayName: 'Project ID',
+				name: 'project_id',
+				type: 'string',
+				default: '',
+				description: 'Link this ticket to a nextgen project. Mutually exclusive with milestone_id (legacy projects).',
 			},
 		],
 	},

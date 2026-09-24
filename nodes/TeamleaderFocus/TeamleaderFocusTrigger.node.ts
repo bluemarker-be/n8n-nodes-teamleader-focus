@@ -72,6 +72,14 @@ export class TeamleaderFocusTrigger implements INodeType {
 					{ name: 'Contact Updated', value: 'contact.updated' },
 					// Credit Note
 					{ name: 'Credit Note Booked', value: 'creditNote.booked' },
+					{
+						name: 'Credit Note Peppol Submission Failed',
+						value: 'creditNote.peppolSubmissionFailed',
+					},
+					{
+						name: 'Credit Note Peppol Submission Succeeded',
+						value: 'creditNote.peppolSubmissionSucceeded',
+					},
 					// Deal
 					{ name: 'Deal Created', value: 'deal.created' },
 					{ name: 'Deal Deleted', value: 'deal.deleted' },
@@ -94,6 +102,14 @@ export class TeamleaderFocusTrigger implements INodeType {
 					{
 						name: 'Invoice Payment Removed',
 						value: 'invoice.paymentRemoved',
+					},
+					{
+						name: 'Invoice Peppol Submission Failed',
+						value: 'invoice.peppolSubmissionFailed',
+					},
+					{
+						name: 'Invoice Peppol Submission Succeeded',
+						value: 'invoice.peppolSubmissionSucceeded',
 					},
 					{ name: 'Invoice Sent', value: 'invoice.sent' },
 					{ name: 'Invoice Updated', value: 'invoice.updated' },

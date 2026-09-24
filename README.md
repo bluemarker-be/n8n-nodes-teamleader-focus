@@ -1,6 +1,6 @@
 # @bluemarker/n8n-nodes-teamleader-focus
 
-n8n community node for the [Teamleader Focus API](https://developer.teamleader.eu/). Covers 47 resources across CRM, invoicing, projects, time tracking, and ticketing — plus a webhook trigger with 15+ event types.
+n8n community node for the [Teamleader Focus API](https://developer.teamleader.eu/). Covers 48 resources across CRM, invoicing, projects, time tracking, and ticketing — plus a webhook trigger with 15+ event types.
 
 Built to track Teamleader's OpenAPI spec. New endpoints and fields land in successive minor releases. For field-level documentation, refer to the [Teamleader API docs](https://developer.teamleader.eu/).
 
@@ -60,6 +60,7 @@ Drop **Teamleader Focus** in any workflow. Pick a resource → operation → fil
 | Deal | `create` `delete` `get` `getMany` `lose` `move` `update` `win` |
 | Deal Phase | `create` `delete` `getMany` `move` `update` |
 | Deal Pipeline | `create` `delete` `duplicate` `getMany` `markAsDefault` `update` |
+| Deal Source | `getMany` |
 | Department | `get` `getMany` |
 | Email Tracking | `create` `getMany` |
 | Event | `cancel` `create` `get` `getMany` `update` |
@@ -72,7 +73,7 @@ Drop **Teamleader Focus** in any workflow. Pick a resource → operation → fil
 | Level Two Area | `getMany` |
 | Mail Template | `getMany` |
 | Meeting | `complete` `createReport` `delete` `get` `getMany` `schedule` `update` |
-| Note | `create` `getMany` `update` |
+| Note | `create` `delete` `getMany` `update` |
 | Order | `get` `getMany` |
 | Plannable Item | `get` `getMany` |
 | Product | `create` `delete` `get` `getMany` `update` |

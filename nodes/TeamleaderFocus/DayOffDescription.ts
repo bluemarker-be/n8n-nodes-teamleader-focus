@@ -61,18 +61,25 @@ export const dayOffFields: INodeProperties[] = [
 				name: 'day',
 				values: [
 					{
+						displayName: 'Date (Full Day)',
+						name: 'date',
+						type: 'dateTime',
+						default: '',
+						description: 'Store this entry as a full day off (YYYY-MM-DD). Takes precedence over Starts At / Ends At if provided.',
+					},
+					{
 						displayName: 'Starts At',
 						name: 'starts_at',
 						type: 'dateTime',
 						default: '',
-						description: 'Start date and time of the day off',
+						description: 'Start date and time of the day off. Ignored when Date is set.',
 					},
 					{
 						displayName: 'Ends At',
 						name: 'ends_at',
 						type: 'dateTime',
 						default: '',
-						description: 'End date and time of the day off',
+						description: 'End date and time of the day off. Ignored when Date is set.',
 					},
 				],
 			},

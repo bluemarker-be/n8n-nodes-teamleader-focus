@@ -26,6 +26,7 @@ import { customFieldOperations, customFieldFields } from './CustomFieldDescripti
 import { dealOperations, dealFields } from './DealDescription';
 import { dealPipelineOperations, dealPipelineFields } from './DealPipelineDescription';
 import { dealPhaseOperations, dealPhaseFields } from './DealPhaseDescription';
+import { dealSourceOperations, dealSourceFields } from './DealSourceDescription';
 import { quotationOperations, quotationFields } from './QuotationDescription';
 
 // Financial
@@ -132,6 +133,7 @@ export class TeamleaderFocus implements INodeType {
 					{ name: 'Deal', value: 'deal' },
 					{ name: 'Deal Phase', value: 'dealPhase' },
 					{ name: 'Deal Pipeline', value: 'dealPipeline' },
+					{ name: 'Deal Source', value: 'dealSource' },
 					{ name: 'Department', value: 'department' },
 					{ name: 'Email Tracking', value: 'emailTracking' },
 					{ name: 'Event', value: 'event' },
@@ -182,6 +184,8 @@ export class TeamleaderFocus implements INodeType {
 			...dealPipelineFields,
 			...dealPhaseOperations,
 			...dealPhaseFields,
+			...dealSourceOperations,
+			...dealSourceFields,
 			...quotationOperations,
 			...quotationFields,
 			// Financial
@@ -611,6 +615,11 @@ export class TeamleaderFocus implements INodeType {
 							'updateFields',
 							i,
 						) as IDataObject;
+						// Null-unset for price_list_id: empty string → null (removes the link)
+						if ('price_list_id' in updateFields && updateFields.price_list_id === '') {
+							body.price_list_id = null;
+							delete updateFields.price_list_id;
+						}
 						Object.assign(body, processContactCompanyFields(updateFields));
 						addCustomFieldsToBody.call(this, body, i, true);
 						responseData = await teamleaderApiRequest.call(
@@ -1089,6 +1098,15 @@ export class TeamleaderFocus implements INodeType {
 							'/dealPhases.move',
 							moveBody,
 						);
+					}
+				}
+
+				// ==============================
+				//         DEAL SOURCE
+				// ==============================
+				else if (resource === 'dealSource') {
+					if (operation === 'getMany') {
+						responseData = await handleGetMany.call(this, i, '/dealSources.list');
 					}
 				}
 
@@ -1795,6 +1813,10 @@ export class TeamleaderFocus implements INodeType {
 							id: this.getNodeParameter('id', i) as string,
 							content: this.getNodeParameter('content', i) as string,
 						});
+					} else if (operation === 'delete') {
+						responseData = await teamleaderApiRequest.call(this, 'POST', '/notes.delete', {
+							id: this.getNodeParameter('id', i) as string,
+						});
 					}
 				}
 
@@ -1933,6 +1955,15 @@ export class TeamleaderFocus implements INodeType {
 							};
 							delete updateFields.time_budget_value;
 							delete updateFields.time_budget_unit;
+						}
+						// Nest initial_time_tracked (baseline for imported historical time)
+						if (updateFields.initial_time_tracked_value !== undefined) {
+							body.initial_time_tracked = {
+								value: updateFields.initial_time_tracked_value,
+								unit: updateFields.initial_time_tracked_unit || 'hours',
+							};
+							delete updateFields.initial_time_tracked_value;
+							delete updateFields.initial_time_tracked_unit;
 						}
 						nestMoneyFields(updateFields, body);
 						assignDefined(body, updateFields);
@@ -2514,7 +2545,11 @@ export class TeamleaderFocus implements INodeType {
 				else if (resource === 'dayOff') {
 					if (operation === 'import') {
 						const daysData = this.getNodeParameter('days', i) as IDataObject;
-						const days = ((daysData?.day as IDataObject[]) || []).map((d: IDataObject) => ({ starts_at: d.starts_at, ends_at: d.ends_at }));
+						const days = ((daysData?.day as IDataObject[]) || []).map((d: IDataObject) => {
+							// Prefer full-day `date` when provided; fall back to starts_at/ends_at range
+							if (d.date) return { date: d.date };
+							return { starts_at: d.starts_at, ends_at: d.ends_at };
+						});
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/daysOff.import', {
 							user_id: this.getNodeParameter('userId', i) as string,
 							leave_type_id: this.getNodeParameter('leaveTypeId', i) as string,
@@ -3020,6 +3055,12 @@ async function handleGetMany(
 				delete filter.subject_type;
 				delete filter.subject_id;
 			}
+			// Nest relates_to_type + relates_to_id into relates_to: { type, id }
+			if (filter.relates_to_type && filter.relates_to_id) {
+				filter.relates_to = { type: filter.relates_to_type, id: filter.relates_to_id };
+				delete filter.relates_to_type;
+				delete filter.relates_to_id;
+			}
 			// Nest supplier_type + supplier_id into supplier: { type, id }
 			if (filter.supplier_type && filter.supplier_id) {
 				filter.supplier = { type: filter.supplier_type, id: filter.supplier_id };
@@ -3057,7 +3098,7 @@ async function handleGetMany(
 				}
 			}
 			// Split comma-separated ID/type list fields into arrays
-			for (const listField of ['plannable_item_ids', 'types']) {
+			for (const listField of ['plannable_item_ids', 'work_type_ids', 'types']) {
 				if (filter[listField] && typeof filter[listField] === 'string') {
 					filter[listField] = (filter[listField] as string).split(',').map((v) => v.trim());
 				}
@@ -3127,7 +3168,10 @@ function processContactCompanyFields(fields: IDataObject): IDataObject {
  * Handles: fixed_price, external_budget, internal_budget.
  */
 function nestMoneyFields(source: IDataObject, target: IDataObject): void {
-	const moneyFields = ['fixed_price', 'external_budget', 'internal_budget'];
+	const moneyFields = [
+		'fixed_price', 'external_budget', 'internal_budget',
+		'initial_price', 'initial_cost', 'initial_amount_billed', 'initial_amount_paid',
+	];
 	for (const field of moneyFields) {
 		if (source[`${field}_amount`] !== undefined && source[`${field}_amount`] !== '') {
 			target[field] = {

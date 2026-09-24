@@ -195,6 +195,15 @@ export const contactFields: INodeProperties[] = [
 				default: '',
 				description: 'ISO 3166-1 alpha-2 country code (e.g. BE, NL, FR)',
 			},
+			{
+				displayName: 'Price List Name or ID',
+				name: 'price_list_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getPriceLists' },
+				default: '',
+				description:
+					'Link the contact to a price list. On update, leave empty to remove the price list link. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+			},
 		],
 	},
 	{
@@ -283,7 +292,7 @@ export const contactFields: INodeProperties[] = [
 				name: 'company_id',
 				type: 'string',
 				default: '',
-				description: 'Filter by company ID',
+				description: 'Filter by a specific company ID. Leave empty (via expression returning null) to match contacts linked to no company at all.',
 			},
 			{
 				displayName: 'Email',
@@ -516,6 +525,15 @@ export const contactFields: INodeProperties[] = [
 				type: 'string',
 				default: '',
 				description: 'ISO 3166-1 alpha-2 country code (e.g. BE, NL, FR)',
+			},
+			{
+				displayName: 'Price List Name or ID',
+				name: 'price_list_id',
+				type: 'options',
+				typeOptions: { loadOptionsMethod: 'getPriceLists' },
+				default: '',
+				description:
+					'Link the contact to a price list. On update, leave empty to remove the price list link. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 			},
 		],
 	},

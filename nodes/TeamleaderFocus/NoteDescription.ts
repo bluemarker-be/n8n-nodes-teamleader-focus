@@ -9,6 +9,7 @@ export const noteOperations: INodeProperties[] = [
 		displayOptions: { show: { resource: ['note'] } },
 		options: [
 			{ name: 'Create', value: 'create', action: 'Create a note' },
+			{ name: 'Delete', value: 'delete', action: 'Delete a note' },
 			{ name: 'Get Many', value: 'getMany', action: 'Get many notes' },
 			{ name: 'Update', value: 'update', action: 'Update a note' },
 		],
@@ -121,7 +122,7 @@ export const noteFields: INodeProperties[] = [
 		type: 'string',
 		required: true,
 		default: '',
-		displayOptions: { show: { resource: ['note'], operation: ['update'] } },
+		displayOptions: { show: { resource: ['note'], operation: ['update', 'delete'] } },
 		description: 'The ID of the note',
 	},
 	{
