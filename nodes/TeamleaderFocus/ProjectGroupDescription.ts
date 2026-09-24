@@ -221,6 +221,39 @@ export const projectGroupFields: INodeProperties[] = [
 				type: 'dateTime',
 				default: '',
 			},
+			{
+				displayName: 'Assignees',
+				name: 'assignees',
+				type: 'fixedCollection',
+				typeOptions: { multipleValues: true },
+				placeholder: 'Add Assignee',
+				default: {},
+				options: [
+					{
+						displayName: 'Assignee',
+						name: 'assignee',
+						values: [
+							{
+								displayName: 'Type',
+								name: 'type',
+								type: 'options',
+								options: [
+									{ name: 'User', value: 'user' },
+									{ name: 'Team', value: 'team' },
+								],
+								default: 'user',
+							},
+							{
+								displayName: 'ID',
+								name: 'id',
+								type: 'string',
+								default: '',
+							},
+						],
+					},
+				],
+				description: 'Users or teams assigned to this group at creation time',
+			},
 		],
 	},
 

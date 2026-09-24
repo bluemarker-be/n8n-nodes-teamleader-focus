@@ -1376,11 +1376,11 @@ export class TeamleaderFocus implements INodeType {
 						if (additionalFields.total_tax_exclusive !== undefined || additionalFields.total_tax_inclusive !== undefined) {
 							addBody.total = {} as IDataObject;
 							if (additionalFields.total_tax_exclusive !== undefined) {
-								(addBody.total as IDataObject).tax_exclusive = additionalFields.total_tax_exclusive;
+								(addBody.total as IDataObject).tax_exclusive = { amount: additionalFields.total_tax_exclusive };
 								delete additionalFields.total_tax_exclusive;
 							}
 							if (additionalFields.total_tax_inclusive !== undefined) {
-								(addBody.total as IDataObject).tax_inclusive = additionalFields.total_tax_inclusive;
+								(addBody.total as IDataObject).tax_inclusive = { amount: additionalFields.total_tax_inclusive };
 								delete additionalFields.total_tax_inclusive;
 							}
 						}
@@ -1396,11 +1396,11 @@ export class TeamleaderFocus implements INodeType {
 						if (updateFields.total_tax_exclusive !== undefined || updateFields.total_tax_inclusive !== undefined) {
 							updBody.total = {} as IDataObject;
 							if (updateFields.total_tax_exclusive !== undefined) {
-								(updBody.total as IDataObject).tax_exclusive = updateFields.total_tax_exclusive;
+								(updBody.total as IDataObject).tax_exclusive = { amount: updateFields.total_tax_exclusive };
 								delete updateFields.total_tax_exclusive;
 							}
 							if (updateFields.total_tax_inclusive !== undefined) {
-								(updBody.total as IDataObject).tax_inclusive = updateFields.total_tax_inclusive;
+								(updBody.total as IDataObject).tax_inclusive = { amount: updateFields.total_tax_inclusive };
 								delete updateFields.total_tax_inclusive;
 							}
 						}
@@ -1466,11 +1466,11 @@ export class TeamleaderFocus implements INodeType {
 						if (additionalFields.total_tax_exclusive !== undefined || additionalFields.total_tax_inclusive !== undefined) {
 							addBody.total = {} as IDataObject;
 							if (additionalFields.total_tax_exclusive !== undefined) {
-								(addBody.total as IDataObject).tax_exclusive = additionalFields.total_tax_exclusive;
+								(addBody.total as IDataObject).tax_exclusive = { amount: additionalFields.total_tax_exclusive };
 								delete additionalFields.total_tax_exclusive;
 							}
 							if (additionalFields.total_tax_inclusive !== undefined) {
-								(addBody.total as IDataObject).tax_inclusive = additionalFields.total_tax_inclusive;
+								(addBody.total as IDataObject).tax_inclusive = { amount: additionalFields.total_tax_inclusive };
 								delete additionalFields.total_tax_inclusive;
 							}
 						}
@@ -1486,11 +1486,11 @@ export class TeamleaderFocus implements INodeType {
 						if (updateFields.total_tax_exclusive !== undefined || updateFields.total_tax_inclusive !== undefined) {
 							updBody.total = {} as IDataObject;
 							if (updateFields.total_tax_exclusive !== undefined) {
-								(updBody.total as IDataObject).tax_exclusive = updateFields.total_tax_exclusive;
+								(updBody.total as IDataObject).tax_exclusive = { amount: updateFields.total_tax_exclusive };
 								delete updateFields.total_tax_exclusive;
 							}
 							if (updateFields.total_tax_inclusive !== undefined) {
-								(updBody.total as IDataObject).tax_inclusive = updateFields.total_tax_inclusive;
+								(updBody.total as IDataObject).tax_inclusive = { amount: updateFields.total_tax_inclusive };
 								delete updateFields.total_tax_inclusive;
 							}
 						}
@@ -1844,12 +1844,12 @@ export class TeamleaderFocus implements INodeType {
 							body.assignee = { type: 'user', id: additionalFields.assignee_id };
 							delete additionalFields.assignee_id;
 						}
-						// Nest estimated_duration
+						// Nest estimated_duration — API only accepts unit: 'min'. Convert hours → minutes.
 						if (additionalFields.estimated_duration_value !== undefined) {
-							body.estimated_duration = {
-								value: additionalFields.estimated_duration_value,
-								unit: additionalFields.estimated_duration_unit || 'hours',
-							};
+							const rawValue = additionalFields.estimated_duration_value as number;
+							const inputUnit = (additionalFields.estimated_duration_unit as string) || 'minutes';
+							const minutes = inputUnit === 'hours' ? rawValue * 60 : rawValue;
+							body.estimated_duration = { value: minutes, unit: 'min' };
 							delete additionalFields.estimated_duration_value;
 							delete additionalFields.estimated_duration_unit;
 						}
@@ -1874,12 +1874,12 @@ export class TeamleaderFocus implements INodeType {
 							body.assignee = { type: 'user', id: updateFields.assignee_id };
 							delete updateFields.assignee_id;
 						}
-						// Nest estimated_duration
+						// Nest estimated_duration — API only accepts unit: 'min'. Convert hours → minutes.
 						if (updateFields.estimated_duration_value !== undefined) {
-							body.estimated_duration = {
-								value: updateFields.estimated_duration_value,
-								unit: updateFields.estimated_duration_unit || 'hours',
-							};
+							const rawValue = updateFields.estimated_duration_value as number;
+							const inputUnit = (updateFields.estimated_duration_unit as string) || 'minutes';
+							const minutes = inputUnit === 'hours' ? rawValue * 60 : rawValue;
+							body.estimated_duration = { value: minutes, unit: 'min' };
 							delete updateFields.estimated_duration_value;
 							delete updateFields.estimated_duration_unit;
 						}
@@ -1924,6 +1924,24 @@ export class TeamleaderFocus implements INodeType {
 						if (additionalFields.owner_ids) {
 							body.owner_ids = additionalFields.owner_ids;
 							delete additionalFields.owner_ids;
+						}
+						// Extract customers array from fixedCollection
+						if (additionalFields.customers) {
+							const customersData = additionalFields.customers as IDataObject;
+							const customersArr = ((customersData?.customer as IDataObject[]) || [])
+								.filter((c) => c.type && c.id)
+								.map((c) => ({ type: c.type, id: c.id }));
+							if (customersArr.length > 0) body.customers = customersArr;
+							delete additionalFields.customers;
+						}
+						// Extract assignees array from fixedCollection
+						if (additionalFields.assignees) {
+							const assigneesData = additionalFields.assignees as IDataObject;
+							const assigneesArr = ((assigneesData?.assignee as IDataObject[]) || [])
+								.filter((a) => a.type && a.id)
+								.map((a) => ({ type: a.type, id: a.id }));
+							if (assigneesArr.length > 0) body.assignees = assigneesArr;
+							delete additionalFields.assignees;
 						}
 						nestMoneyFields(additionalFields, body);
 						assignDefined(body, additionalFields);
@@ -2061,6 +2079,15 @@ export class TeamleaderFocus implements INodeType {
 							title: this.getNodeParameter('title', i) as string,
 						};
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						// Extract assignees array from fixedCollection
+						if (additionalFields.assignees) {
+							const assigneesData = additionalFields.assignees as IDataObject;
+							const assigneesArr = ((assigneesData?.assignee as IDataObject[]) || [])
+								.filter((a) => a.type && a.id)
+								.map((a) => ({ type: a.type, id: a.id }));
+							if (assigneesArr.length > 0) body.assignees = assigneesArr;
+							delete additionalFields.assignees;
+						}
 						nestMoneyFields(additionalFields, body);
 						assignDefined(body, additionalFields);
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/projects-v2/projectGroups.create', body);
@@ -2208,8 +2235,10 @@ export class TeamleaderFocus implements INodeType {
 						const body: IDataObject = {
 							project_id: this.getNodeParameter('projectId', i) as string,
 							title: this.getNodeParameter('title', i) as string,
-							group_id: this.getNodeParameter('groupId', i) as string,
 						};
+						// group_id is optional per spec ("If omitted, material not added to a group")
+						const groupId = this.getNodeParameter('groupId', i, '') as string;
+						if (groupId) body.group_id = groupId;
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
 						// Nest unit_price
 						if (additionalFields.unit_price_amount !== undefined) {
@@ -2252,6 +2281,14 @@ export class TeamleaderFocus implements INodeType {
 							body.unit_price = unitPrice;
 							delete updateFields.unit_price_amount;
 							delete updateFields.unit_price_currency;
+						}
+						// Nest unit_cost
+						if (updateFields.unit_cost_amount !== undefined) {
+							const unitCost: IDataObject = { amount: updateFields.unit_cost_amount };
+							if (updateFields.unit_cost_currency) unitCost.currency = updateFields.unit_cost_currency;
+							body.unit_cost = unitCost;
+							delete updateFields.unit_cost_amount;
+							delete updateFields.unit_cost_currency;
 						}
 						nestMoneyFields(updateFields, body);
 						assignDefined(body, updateFields);
@@ -3322,10 +3359,10 @@ function buildQuotationBody(context: IExecuteFunctions, itemIndex: number): IDat
 			}));
 			delete additionalFields.discounts;
 		}
-		// Build expiry from structured fields
+		// Build expiry from structured fields (spec field is `expires_after`, not `date`)
 		if (additionalFields.expiry_date) {
 			body.expiry = {
-				date: additionalFields.expiry_date,
+				expires_after: additionalFields.expiry_date,
 				action_after_expiry: additionalFields.expiry_action || 'none',
 			} as IDataObject;
 		}
@@ -3361,10 +3398,10 @@ function buildQuotationUpdateBody(context: IExecuteFunctions, itemIndex: number)
 			}));
 			delete updateFields.discounts;
 		}
-		// Build expiry from structured fields
+		// Build expiry from structured fields (spec field is `expires_after`, not `date`)
 		if (updateFields.expiry_date) {
 			body.expiry = {
-				date: updateFields.expiry_date,
+				expires_after: updateFields.expiry_date,
 				action_after_expiry: updateFields.expiry_action || 'none',
 			} as IDataObject;
 		}
@@ -3559,15 +3596,28 @@ function buildInvoiceBookBody(context: IExecuteFunctions, itemIndex: number): ID
 
 function buildInvoiceSendBody(context: IExecuteFunctions, itemIndex: number): IDataObject {
 	const recipientsTo = JSON.parse(context.getNodeParameter('recipientsTo', itemIndex) as string);
+	const content: IDataObject = {
+		subject: context.getNodeParameter('emailSubject', itemIndex) as string,
+		body: context.getNodeParameter('emailBody', itemIndex) as string,
+	};
+	const mailTemplateId = context.getNodeParameter('mailTemplateId', itemIndex, '') as string;
+	if (mailTemplateId) content.mail_template_id = mailTemplateId;
 	const body: IDataObject = {
 		id: context.getNodeParameter('id', itemIndex) as string,
-		from: context.getNodeParameter('fromEmail', itemIndex) as string,
 		recipients: { to: recipientsTo } as IDataObject,
-		content: {
-			subject: context.getNodeParameter('emailSubject', itemIndex) as string,
-			body: context.getNodeParameter('emailBody', itemIndex) as string,
-		},
+		content,
 	};
+	const attachmentsRaw = context.getNodeParameter('invoiceSendAttachments', itemIndex, '[]') as string;
+	if (attachmentsRaw && attachmentsRaw !== '[]') {
+		try {
+			const attachments = typeof attachmentsRaw === 'string' ? JSON.parse(attachmentsRaw) : attachmentsRaw;
+			if (Array.isArray(attachments) && attachments.length > 0) {
+				body.attachments = attachments;
+			}
+		} catch {
+			// invalid JSON, skip
+		}
+	}
 	try {
 		const extra = context.getNodeParameter('sendAdditionalFields', itemIndex, {}) as IDataObject;
 		if (extra.cc) {

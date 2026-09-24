@@ -7,6 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.12] - 2026-09-24
+
+_Session 6 continuation — remaining spec-review gaps addressed after final verification._
+
+### Added
+
+- **Project — Create**: new `Customers` and `Assignees` fixedCollections (API allows setting these at creation time — was only possible via post-create `addCustomer`/`assign` calls). Each entry accepts `type` (contact/company or user/team) + `id`. Handler builds arrays of `{type, id}`.
+- **Project Group — Create**: new `Assignees` fixedCollection (same shape as Project). Users/teams can now be assigned during creation instead of only via post-create `assign` call.
+- **Project Material — Update**: 4 new fields per spec:
+  - `Billing Method` (enum: unit_price/fixed_price/parent_fixed_price/non_billable)
+  - `Quantity Estimated` (number)
+  - `Unit Cost Amount` + `Unit Cost Currency` (transformed to `{amount, currency}` Money object via handler)
+  - `Unit ID` (string, unit of measure ID)
+- **Credit Note — Download format**: added `UBL (Peppol BIS 3)` and `UBL (XRechnung)` per spec's full enum (was only pdf + ubl/e-fff)
+- **Invoice — Download format**: added `UBL (XRechnung)` per spec
+
+### Fixed
+
+- **Project Material — Create `groupId`**: handler now correctly handles the field as optional (matches 0.2.11 UI change). Empty groupId is omitted from the request body instead of sending an empty string.
+
+### Verified as non-bugs (agents were wrong)
+
+- Meeting `createReport` — handler correctly nests `attachToType`/`attachToId` into `attach_to: {type, id}` at runtime.
+- TimeTracking `add` — subject.type enum already matches spec exactly (`[company, contact, event, milestone, nextgenTask, ticket, todo]`).
+- Reservation `create`/`update` — duration builds `{value, unit: 'minutes'}` and assignee builds `{type, id}` per spec.
+
+### Known remaining gaps (won't fix this release)
+
+- Invoice `creditPartially` — spec allows optional `credit_note_date` + `discounts` (not needed for typical partial credits, low priority)
+- Product `create` — spec allows `code` as alternative to `name` for required identification (UX enhancement, not a bug)
+
+## [0.2.11] - 2026-09-24
+
+_Full-codebase spec-review round — 6 parallel agents against 48 resources, 10 confirmed bugs fixed after manual verification._
+
+### Fixed
+
+- **Project Task — Create `billing_method` enum**: was `[time_and_materials, fixed_price, non_billable]` (all invalid for project tasks — `time_and_materials` is a Project-level value). Spec accepts `[user_rate, work_type_rate, custom_rate, fixed_price, parent_fixed_price, non_billable]`. Enum fully replaced; default changed to `user_rate`.
+- **Project Material — Create `billing_method` default**: default was still `time_and_materials` even after the 0.2.10 enum fix. Corrected to `unit_price` (first valid enum value).
+- **Project Material — Create `groupId`**: field was required but spec says optional ("If omitted, the material is not added to a group"). Removed `required: true`.
+- **Note — Create `subject.type` enum**: was `[company, contact, deal, meeting, project, ticket]` — `ticket` and `project` are NOT valid (spec has `nextgenProject`, no `ticket`). Corrected to spec enum `[company, contact, creditNote, deal, invoice, meeting, nextgenProject, product, quotation, subscription]`.
+- **Note — List `subject_type` filter**: same fix as create — filter enum now matches spec.
+- **Invoice — Send `from` field**: removed. Field was in the UI as required, but not in the API spec at all. API silently ignored it — users setting a "From Email" thought they were setting a sender but nothing happened. Removed to avoid confusion.
+- **Quotation — Create/Update `expiry` field name**: node built `expiry: {date, action_after_expiry}` but spec expects `expiry: {expires_after, action_after_expiry}`. Field name corrected. Expiry setting now actually persists.
+
+### Added
+
+- **Invoice — Send `Mail Template`**: new field (loadOptions from `getMailTemplates`) matching spec's `content.mail_template_id`. Sets the email language and tracks which template was used.
+- **Invoice — Send `Attachments`**: new field accepting a JSON array of file IDs matching spec's `attachments`. Aligns with the quotation.send capability.
+
+### Review methodology & notes
+
+- Six parallel Explore agents each covered 4-8 resources against spec 1.220. Each finding was manually verified against the raw spec YAML before acting (~40% of agent claims were hallucinations or misreads and were skipped).
+- **Batch findings summary**:
+  - Batch 1 (Deal): 0 bugs — clean
+  - Batch 2 (Invoice/CreditNote/Quotation): 3 confirmed fixes (from-field, mail-template, expiry, attachments)
+  - Batch 3 (Projects family): 3 confirmed fixes (ProjectTask billing, ProjectMaterial default+groupId)
+  - Batch 4 (Meeting/Event/Task/TimeTracking/Reservation): most flagged items were false alarms after verification (handler nesting was correct); need deeper look at Meeting.createReport, Reservation duration/assignee, TimeTracking add subject enum in a next round
+  - Batch 5 (Financial support): payment ops all correctly implemented
+  - Batch 6 (Contacts/Companies/Tickets/misc): 1 confirmed fix (Note subject enum)
+- Known remaining gaps flagged but NOT fixed this release (need further review): Project.create missing `customers`/`assignees` arrays; ProjectGroup.create missing `assignees`; ProjectMaterial.update missing `unit_cost`/`quantity_estimated`/`billing_method`/`unit_id`; CreditNote.download missing `ubl/peppol_bis_3` format; Invoice.creditPartially missing optional `credit_note_date`/`discounts` fields.
+
+## [0.2.10] - 2026-09-24
+
+_Deep spec-review hotfix — random-sample review of 6 resources uncovered 5 pre-existing shape/enum bugs._
+
+### Fixed
+
+- **Task — `estimated_duration`**: API only accepts `unit: 'min'` per spec (`DurationInMinutes` type). Node previously sent `unit: 'hours'` or `unit: 'minutes'` which the API rejected. Handler now auto-converts: hours → minutes (× 60), and always sends `unit: 'min'`. UI still shows Hours/Minutes for user friendliness. Default UI unit changed from Hours to Minutes to match the natural API contract.
+- **Meeting — `work_type_id` removed**: field was in the UI on both `schedule` and `update`, but the spec has no `work_type_id` on meetings (0 occurrences in `/meetings.schedule` and `/meetings.update` sections). The API silently ignored it. Removed from UI so users don't waste time filling in a field that never worked.
+- **Incoming Invoice — `total.tax_exclusive` / `total.tax_inclusive` shape**: spec expects `{amount: number}` objects (per `Money` type), node was sending flat numbers. Any request with these fields would return HTTP 400. Fixed on both `add` and `update`.
+- **Incoming Credit Note — `total.tax_exclusive` / `total.tax_inclusive` shape**: same bug as Incoming Invoice. Fixed on both `add` and `update`.
+- **Event — `links[].type` enum**: node exposed `[contact, company, deal, project, ticket, milestone]` but spec accepts only `[contact, company, deal]`. Removed the 3 invalid options from both `create` and `update` link pickers. Users picking `project`/`ticket`/`milestone` were sending silently-ignored data.
+
+### Notes
+
+- Review methodology: 6 resources sampled (Meeting, Task, IncomingInvoice, Product, Event, Deal). Hit rate ≈ 100% — every deep-reviewed resource had at least one shape or enum bug. Suggests broader codebase has more latent issues; further reviews recommended for high-traffic resources.
+- Known gap (not fixed): **Product `price_list_prices`** — spec under-documents the item shape (`type: array, items: {}`); skip until Teamleader clarifies. Product `stock` / `configuration.stock_threshold` are feature-gated and out of common scope.
+
 ## [0.2.9] - 2026-09-24
 
 _Session 4 — the "rest bucket": field additions across 10+ resources, plus a new Deal Source resource and Peppol webhook events._

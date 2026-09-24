@@ -108,7 +108,8 @@ export const taskFields: INodeProperties[] = [
 					{ name: 'Hours', value: 'hours' },
 					{ name: 'Minutes', value: 'minutes' },
 				],
-				default: 'hours',
+				default: 'minutes',
+				description: 'The API only accepts minutes internally. Hours are converted automatically (value × 60).',
 			},
 			{
 				displayName: 'Milestone ID',
@@ -339,7 +340,8 @@ export const taskFields: INodeProperties[] = [
 					{ name: 'Hours', value: 'hours' },
 					{ name: 'Minutes', value: 'minutes' },
 				],
-				default: 'hours',
+				default: 'minutes',
+				description: 'The API only accepts minutes internally. Hours are converted automatically (value × 60).',
 			},
 			{
 				displayName: 'Customer Type',

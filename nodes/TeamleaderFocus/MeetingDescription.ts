@@ -142,15 +142,6 @@ export const meetingFields: INodeProperties[] = [
 				description: 'Requires Project ID. The group must belong to the specified project.',
 			},
 			{
-				displayName: 'Work Type Name or ID',
-				name: 'work_type_id',
-				type: 'options',
-				typeOptions: { loadOptionsMethod: 'getWorkTypes' },
-				default: '',
-				description:
-					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
-			},
-			{
 				displayName: 'Work Order ID',
 				name: 'work_order_id',
 				type: 'string',
@@ -390,15 +381,6 @@ export const meetingFields: INodeProperties[] = [
 						],
 					},
 				],
-			},
-			{
-				displayName: 'Work Type Name or ID',
-				name: 'work_type_id',
-				type: 'options',
-				typeOptions: { loadOptionsMethod: 'getWorkTypes' },
-				default: '',
-				description:
-					'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>',
 			},
 			{
 				displayName: 'Customer Type',

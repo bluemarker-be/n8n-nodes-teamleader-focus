@@ -187,6 +187,72 @@ export const projectFields: INodeProperties[] = [
 				type: 'string',
 				default: '',
 			},
+			{
+				displayName: 'Customers',
+				name: 'customers',
+				type: 'fixedCollection',
+				typeOptions: { multipleValues: true },
+				placeholder: 'Add Customer',
+				default: {},
+				options: [
+					{
+						displayName: 'Customer',
+						name: 'customer',
+						values: [
+							{
+								displayName: 'Type',
+								name: 'type',
+								type: 'options',
+								options: [
+									{ name: 'Contact', value: 'contact' },
+									{ name: 'Company', value: 'company' },
+								],
+								default: 'company',
+							},
+							{
+								displayName: 'ID',
+								name: 'id',
+								type: 'string',
+								default: '',
+							},
+						],
+					},
+				],
+				description: 'Customers linked to this project at creation time',
+			},
+			{
+				displayName: 'Assignees',
+				name: 'assignees',
+				type: 'fixedCollection',
+				typeOptions: { multipleValues: true },
+				placeholder: 'Add Assignee',
+				default: {},
+				options: [
+					{
+						displayName: 'Assignee',
+						name: 'assignee',
+						values: [
+							{
+								displayName: 'Type',
+								name: 'type',
+								type: 'options',
+								options: [
+									{ name: 'User', value: 'user' },
+									{ name: 'Team', value: 'team' },
+								],
+								default: 'user',
+							},
+							{
+								displayName: 'ID',
+								name: 'id',
+								type: 'string',
+								default: '',
+							},
+						],
+					},
+				],
+				description: 'Users or teams assigned to this project at creation time',
+			},
 		],
 	},
 	{

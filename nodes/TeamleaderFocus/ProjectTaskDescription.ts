@@ -120,11 +120,14 @@ export const projectTaskFields: INodeProperties[] = [
 				name: 'billing_method',
 				type: 'options',
 				options: [
-					{ name: 'Time & Materials', value: 'time_and_materials' },
+					{ name: 'User Rate', value: 'user_rate' },
+					{ name: 'Work Type Rate', value: 'work_type_rate' },
+					{ name: 'Custom Rate', value: 'custom_rate' },
 					{ name: 'Fixed Price', value: 'fixed_price' },
+					{ name: 'Parent Fixed Price', value: 'parent_fixed_price' },
 					{ name: 'Non-Billable', value: 'non_billable' },
 				],
-				default: 'time_and_materials',
+				default: 'user_rate',
 			},
 			{
 				displayName: 'Fixed Price Amount',

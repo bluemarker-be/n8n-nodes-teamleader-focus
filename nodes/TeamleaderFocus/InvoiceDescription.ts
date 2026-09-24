@@ -339,15 +339,6 @@ export const invoiceFields: INodeProperties[] = [
 	//         invoice: send
 	// ----------------------------------
 	{
-		displayName: 'From Email',
-		name: 'fromEmail',
-		type: 'string',
-		required: true,
-		default: '',
-		displayOptions: { show: { resource: ['invoice'], operation: ['send'] } },
-		description: 'The email address to send from',
-	},
-	{
 		displayName: 'Recipients (To)',
 		name: 'recipientsTo',
 		type: 'json',
@@ -373,6 +364,24 @@ export const invoiceFields: INodeProperties[] = [
 		default: '',
 		displayOptions: { show: { resource: ['invoice'], operation: ['send'] } },
 		description: 'The email body content',
+	},
+	{
+		displayName: 'Mail Template Name or ID',
+		name: 'mailTemplateId',
+		type: 'options',
+		typeOptions: { loadOptionsMethod: 'getMailTemplates' },
+		default: '',
+		displayOptions: { show: { resource: ['invoice'], operation: ['send'] } },
+		description:
+			'Optional. Sets the language of the email and tracks which template was used. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+	},
+	{
+		displayName: 'Attachments (File IDs, JSON array)',
+		name: 'invoiceSendAttachments',
+		type: 'json',
+		default: '[]',
+		displayOptions: { show: { resource: ['invoice'], operation: ['send'] } },
+		description: 'JSON array of file IDs to attach. Example: ["file-uuid-1", "file-uuid-2"]',
 	},
 	{
 		displayName: 'Additional Send Fields',
@@ -882,6 +891,7 @@ export const invoiceFields: INodeProperties[] = [
 			{ name: 'PDF', value: 'pdf' },
 			{ name: 'UBL (e-FFF)', value: 'ubl/e-fff' },
 			{ name: 'UBL (Peppol BIS 3)', value: 'ubl/peppol_bis_3' },
+			{ name: 'UBL (XRechnung)', value: 'ubl/xrechnung' },
 		],
 		required: true,
 		default: 'pdf',

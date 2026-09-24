@@ -121,6 +121,8 @@ export const creditNoteFields: INodeProperties[] = [
 		options: [
 			{ name: 'PDF', value: 'pdf' },
 			{ name: 'UBL (e-FFF)', value: 'ubl/e-fff' },
+			{ name: 'UBL (Peppol BIS 3)', value: 'ubl/peppol_bis_3' },
+			{ name: 'UBL (XRechnung)', value: 'ubl/xrechnung' },
 		],
 		required: true,
 		default: 'pdf',
