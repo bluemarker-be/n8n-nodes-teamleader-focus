@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-09-24
+
+_Documentation release — README overhaul._
+
+### Changed
+
+- **README**: rewritten to match the style of `@bluemarker/teamleader-focus-js-sdk`. Adds full resource-and-operations table (47 resources), setup walkthrough, automatic-behaviors documentation (pagination, custom fields, date formatting, rate limiting, includes), spec-alignment note, and development commands.
+
 ## [0.2.7] - 2026-09-24
 
 _Session 3 — Deals + Subscriptions + Invoices expansion._
