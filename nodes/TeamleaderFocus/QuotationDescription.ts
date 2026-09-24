@@ -51,6 +51,13 @@ export const quotationFields: INodeProperties[] = [
 		displayOptions: { show: { resource: ['quotation'], operation: ['create'] } },
 		options: [
 			{
+				displayName: 'Name',
+				name: 'name',
+				type: 'string',
+				default: '',
+				description: 'Name/title of the quotation',
+			},
+			{
 				displayName: 'Document Template Name or ID',
 				name: 'document_template_id',
 				type: 'options',
@@ -377,6 +384,13 @@ export const quotationFields: INodeProperties[] = [
 		default: {},
 		displayOptions: { show: { resource: ['quotation'], operation: ['update'] } },
 		options: [
+			{
+				displayName: 'Name',
+				name: 'name',
+				type: 'string',
+				default: '',
+				description: 'Name/title of the quotation',
+			},
 			{
 				displayName: 'Grouped Lines (JSON)',
 				name: 'grouped_lines',

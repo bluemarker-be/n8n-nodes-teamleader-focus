@@ -1,6 +1,6 @@
 {
 	"name": "@bluemarker/n8n-nodes-teamleader-focus",
-	"version": "0.2.3",
+	"version": "0.2.4",
 	"description": "n8n community node for Teamleader Focus",
 	"keywords": [
 		"n8n-community-node-package",
@@ -15,7 +15,7 @@
 	"author": {
 		"name": "Henk de Blauw",
 		"email": "henk@bluemarker.be",
-		"website": "https://www.bluemarker.be"
+		"url": "https://www.bluemarker.be"
 	},
 	"repository": {
 		"type": "git",

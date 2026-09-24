@@ -2991,6 +2991,31 @@ async function handleGetMany(
 				delete filter.subject_type;
 				delete filter.subject_id;
 			}
+			// Nest supplier_type + supplier_id into supplier: { type, id }
+			if (filter.supplier_type && filter.supplier_id) {
+				filter.supplier = { type: filter.supplier_type, id: filter.supplier_id };
+				delete filter.supplier_type;
+				delete filter.supplier_id;
+			}
+			// Build paid_at operator filter: { operator, value?, start?, end? }
+			if (filter.paid_at_operator) {
+				const toDate = (v: unknown): string | undefined => {
+					if (typeof v !== 'string' || !v) return undefined;
+					return v.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? v;
+				};
+				const paidAt: IDataObject = { operator: filter.paid_at_operator };
+				const value = toDate(filter.paid_at_value);
+				const start = toDate(filter.paid_at_start);
+				const end = toDate(filter.paid_at_end);
+				if (value) paidAt.value = value;
+				if (start) paidAt.start = start;
+				if (end) paidAt.end = end;
+				filter.paid_at = paidAt;
+				delete filter.paid_at_operator;
+				delete filter.paid_at_value;
+				delete filter.paid_at_start;
+				delete filter.paid_at_end;
+			}
 			// Wrap email filter as { type: 'primary', email: value } for contacts/companies .list
 			if (filter.email && typeof filter.email === 'string') {
 				filter.email = { type: 'primary', email: filter.email };

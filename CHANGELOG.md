@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-09-24
+
+_Session 1 of the 2026 API-changelog coverage sweep — quick wins & small fields (based on API spec v1.220)._
+
+### Added
+
+- **File — Upload**: new `temporary` subject type for uploading files not linked to any subject (API Jan 2026)
+- **Quotation — Create / Update**: `name` field (API Aug 2026)
+- **Expense — List filters**:
+  - `supplier` filter (type + ID pair, nested to `supplier: {type, id}` for the API) (API Feb 2026)
+  - `paid_at` filter with operator (`equals`, `before`, `after`, `between`, `is_empty`) and value/start/end fields (API Feb 2026)
+- **Expense — Sort**: added `due_date` and `supplier_name` as sort field options (API Feb 2026)
+
+### Fixed
+
+- **Expense — payment_statuses filter**: enum values were `[paid, unpaid]` (invalid); corrected to `[unknown, paid, partially_paid, credited, not_paid]` per API spec. Existing workflows using `paid` still work; `unpaid` needs to be migrated to `not_paid`.
+
+### Metadata
+
+- Fixed `author.website` → `author.url` in package.json (npm's Person spec uses `url`; `website` was silently ignored)
+
 ## [0.2.3] - 2026-04-12
 
 _First public release under the `@bluemarker` scope, published 2026-09-24. Repository moved to `github.com/bluemarker-be/n8n-nodes-teamleader-focus`._

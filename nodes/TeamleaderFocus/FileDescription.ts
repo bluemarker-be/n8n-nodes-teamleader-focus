@@ -39,10 +39,12 @@ export const fileFields: INodeProperties[] = [
 			{ name: 'Deal', value: 'deal' },
 			{ name: 'Project', value: 'project' },
 			{ name: 'Ticket', value: 'ticket' },
+			{ name: 'Temporary (Upload only)', value: 'temporary' },
 		],
 		required: true,
 		default: 'contact',
 		displayOptions: { show: { resource: ['file'], operation: ['getMany', 'upload'] } },
+		description: 'Use "Temporary" only with Upload — creates a file not linked to any subject. Subject ID is ignored for temporary uploads.',
 	},
 	{
 		displayName: 'Subject ID',
