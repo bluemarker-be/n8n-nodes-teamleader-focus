@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-29
+
+_Twelve new lookup resources exposed for migration workflows — previously only available as internal `loadOptions` dropdown helpers. Minor bump because these are substantive new user-facing resources._
+
+### Added
+
+Twelve new list-only resources, each with a single `Get Many` operation and `Return All` / `Limit` pagination. All raw API responses passed through to workflow output (no field transformations) so they can be fed directly into a downstream `Create` / `Update` node in a target account.
+
+- **Activity Type** — `POST /activityTypes.list`
+- **Call Outcome** — `POST /callOutcomes.list`
+- **Commercial Discount** — `POST /commercialDiscounts.list`
+- **Lost Reason** — `POST /lostReasons.list`
+- **Payment Method** — `POST /paymentMethods.list`
+- **Payment Term** — `POST /paymentTerms.list` (note: response uses `type` string as identifier, not UUID `id` — Teamleader convention)
+- **Price List** — `POST /priceLists.list`
+- **Tax Rate** — `POST /taxRates.list` (includes `rate` percentage in response)
+- **Ticket Status** — `POST /ticketStatus.list`
+- **Unit of Measure** — `POST /unitsOfMeasure.list`
+- **Withholding Tax Rate** — `POST /withholdingTaxRates.list` (includes `rate` percentage)
+- **Work Type** — `POST /workTypes.list`
+
+### Notes
+
+- The existing `getActivityTypes`, `getCallOutcomes`, etc. `loadOptions` helpers (used by dropdown fields on Product, Deal, Ticket, etc.) are unchanged — this release only adds them as standalone resources you can call from a workflow node.
+- Two more lookup helpers (`getProductCategories`, `getDocumentTemplates`) exist but were kept out of scope; likely candidates for a follow-up release.
+
 ## [0.2.13] - 2026-09-29
 
 _Two new list-only resources exposed for migration workflows — previously only available as internal dropdown helpers._

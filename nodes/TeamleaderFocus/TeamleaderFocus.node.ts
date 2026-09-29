@@ -87,12 +87,24 @@ import { bookkeepingSubmissionOperations, bookkeepingSubmissionFields } from './
 
 // Utilities
 import { accountOperations, accountFields } from './AccountDescription';
+import { activityTypeOperations, activityTypeFields } from './ActivityTypeDescription';
 import { businessTypeOperations, businessTypeFields } from './BusinessTypeDescription';
+import { callOutcomeOperations, callOutcomeFields } from './CallOutcomeDescription';
 import { cloudPlatformOperations, cloudPlatformFields } from './CloudPlatformDescription';
+import { commercialDiscountOperations, commercialDiscountFields } from './CommercialDiscountDescription';
 import { currencyOperations, currencyFields } from './CurrencyDescription';
 import { levelTwoAreaOperations, levelTwoAreaFields } from './LevelTwoAreaDescription';
+import { lostReasonOperations, lostReasonFields } from './LostReasonDescription';
 import { mailTemplateOperations, mailTemplateFields } from './MailTemplateDescription';
+import { paymentMethodOperations, paymentMethodFields } from './PaymentMethodDescription';
+import { paymentTermOperations, paymentTermFields } from './PaymentTermDescription';
+import { priceListOperations, priceListFields } from './PriceListDescription';
 import { tagOperations, tagFields } from './TagDescription';
+import { taxRateOperations, taxRateFields } from './TaxRateDescription';
+import { ticketStatusOperations, ticketStatusFields } from './TicketStatusDescription';
+import { unitOfMeasureOperations, unitOfMeasureFields } from './UnitOfMeasureDescription';
+import { withholdingTaxRateOperations, withholdingTaxRateFields } from './WithholdingTaxRateDescription';
+import { workTypeOperations, workTypeFields } from './WorkTypeDescription';
 
 export class TeamleaderFocus implements INodeType {
 	description: INodeTypeDescription = {
@@ -122,11 +134,14 @@ export class TeamleaderFocus implements INodeType {
 				noDataExpression: true,
 				options: [
 					{ name: 'Account', value: 'account' },
+					{ name: 'Activity Type', value: 'activityType' },
 					{ name: 'Bookkeeping Submission', value: 'bookkeepingSubmission' },
 					{ name: 'Business Type', value: 'businessType' },
 					{ name: 'Call', value: 'call' },
+					{ name: 'Call Outcome', value: 'callOutcome' },
 					{ name: 'Cloud Platform', value: 'cloudPlatform' },
 					{ name: 'Closing Day', value: 'closingDay' },
+					{ name: 'Commercial Discount', value: 'commercialDiscount' },
 					{ name: 'Company', value: 'company' },
 					{ name: 'Contact', value: 'contact' },
 					{ name: 'Credit Note', value: 'creditNote' },
@@ -147,11 +162,15 @@ export class TeamleaderFocus implements INodeType {
 					{ name: 'Incoming Invoice', value: 'incomingInvoice' },
 					{ name: 'Invoice', value: 'invoice' },
 					{ name: 'Level Two Area', value: 'levelTwoArea' },
+					{ name: 'Lost Reason', value: 'lostReason' },
 					{ name: 'Mail Template', value: 'mailTemplate' },
 					{ name: 'Meeting', value: 'meeting' },
 					{ name: 'Note', value: 'note' },
 					{ name: 'Order', value: 'order' },
+					{ name: 'Payment Method', value: 'paymentMethod' },
+					{ name: 'Payment Term', value: 'paymentTerm' },
 					{ name: 'Plannable Item', value: 'plannableItem' },
+					{ name: 'Price List', value: 'priceList' },
 					{ name: 'Product', value: 'product' },
 					{ name: 'Project', value: 'project' },
 					{ name: 'Project Group', value: 'projectGroup' },
@@ -164,13 +183,18 @@ export class TeamleaderFocus implements INodeType {
 					{ name: 'Subscription', value: 'subscription' },
 					{ name: 'Tag', value: 'tag' },
 					{ name: 'Task', value: 'task' },
+					{ name: 'Tax Rate', value: 'taxRate' },
 					{ name: 'Team', value: 'team' },
 					{ name: 'Ticket', value: 'ticket' },
+					{ name: 'Ticket Status', value: 'ticketStatus' },
 					{ name: 'Time Tracking', value: 'timeTracking' },
 					{ name: 'Timer', value: 'timer' },
+					{ name: 'Unit of Measure', value: 'unitOfMeasure' },
 					{ name: 'User', value: 'user' },
 					{ name: 'User Availability', value: 'userAvailability' },
 					{ name: 'Webhook', value: 'webhook' },
+					{ name: 'Withholding Tax Rate', value: 'withholdingTaxRate' },
+					{ name: 'Work Type', value: 'workType' },
 				],
 				default: 'contact',
 			},
@@ -271,18 +295,42 @@ export class TeamleaderFocus implements INodeType {
 			// Utilities
 			...accountOperations,
 			...accountFields,
+			...activityTypeOperations,
+			...activityTypeFields,
 			...businessTypeOperations,
 			...businessTypeFields,
+			...callOutcomeOperations,
+			...callOutcomeFields,
 			...cloudPlatformOperations,
 			...cloudPlatformFields,
+			...commercialDiscountOperations,
+			...commercialDiscountFields,
 			...currencyOperations,
 			...currencyFields,
 			...levelTwoAreaOperations,
 			...levelTwoAreaFields,
+			...lostReasonOperations,
+			...lostReasonFields,
 			...mailTemplateOperations,
 			...mailTemplateFields,
+			...paymentMethodOperations,
+			...paymentMethodFields,
+			...paymentTermOperations,
+			...paymentTermFields,
+			...priceListOperations,
+			...priceListFields,
 			...tagOperations,
 			...tagFields,
+			...taxRateOperations,
+			...taxRateFields,
+			...ticketStatusOperations,
+			...ticketStatusFields,
+			...unitOfMeasureOperations,
+			...unitOfMeasureFields,
+			...withholdingTaxRateOperations,
+			...withholdingTaxRateFields,
+			...workTypeOperations,
+			...workTypeFields,
 		],
 	};
 
@@ -2983,6 +3031,84 @@ export class TeamleaderFocus implements INodeType {
 						responseData = await handleGetMany.call(this, i, '/businessTypes.list', {
 							filter: { country },
 						});
+					}
+				}
+
+				// ==============================
+				//     LOOKUP RESOURCES (v0.3.0)
+				// Simple list-only endpoints, previously exposed only as
+				// loadOptions helpers for dropdowns. Useful for migration
+				// workflows that need to enumerate configuration values.
+				// ==============================
+				else if (resource === 'activityType') {
+					if (operation === 'getMany') {
+						responseData = await handleGetMany.call(this, i, '/activityTypes.list');
+					}
+				}
+
+				else if (resource === 'callOutcome') {
+					if (operation === 'getMany') {
+						responseData = await handleGetMany.call(this, i, '/callOutcomes.list');
+					}
+				}
+
+				else if (resource === 'commercialDiscount') {
+					if (operation === 'getMany') {
+						responseData = await handleGetMany.call(this, i, '/commercialDiscounts.list');
+					}
+				}
+
+				else if (resource === 'lostReason') {
+					if (operation === 'getMany') {
+						responseData = await handleGetMany.call(this, i, '/lostReasons.list');
+					}
+				}
+
+				else if (resource === 'paymentMethod') {
+					if (operation === 'getMany') {
+						responseData = await handleGetMany.call(this, i, '/paymentMethods.list');
+					}
+				}
+
+				else if (resource === 'paymentTerm') {
+					if (operation === 'getMany') {
+						responseData = await handleGetMany.call(this, i, '/paymentTerms.list');
+					}
+				}
+
+				else if (resource === 'priceList') {
+					if (operation === 'getMany') {
+						responseData = await handleGetMany.call(this, i, '/priceLists.list');
+					}
+				}
+
+				else if (resource === 'taxRate') {
+					if (operation === 'getMany') {
+						responseData = await handleGetMany.call(this, i, '/taxRates.list');
+					}
+				}
+
+				else if (resource === 'ticketStatus') {
+					if (operation === 'getMany') {
+						responseData = await handleGetMany.call(this, i, '/ticketStatus.list');
+					}
+				}
+
+				else if (resource === 'unitOfMeasure') {
+					if (operation === 'getMany') {
+						responseData = await handleGetMany.call(this, i, '/unitsOfMeasure.list');
+					}
+				}
+
+				else if (resource === 'withholdingTaxRate') {
+					if (operation === 'getMany') {
+						responseData = await handleGetMany.call(this, i, '/withholdingTaxRates.list');
+					}
+				}
+
+				else if (resource === 'workType') {
+					if (operation === 'getMany') {
+						responseData = await handleGetMany.call(this, i, '/workTypes.list');
 					}
 				}
 
