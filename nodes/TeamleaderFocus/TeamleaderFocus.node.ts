@@ -87,10 +87,12 @@ import { bookkeepingSubmissionOperations, bookkeepingSubmissionFields } from './
 
 // Utilities
 import { accountOperations, accountFields } from './AccountDescription';
+import { businessTypeOperations, businessTypeFields } from './BusinessTypeDescription';
 import { cloudPlatformOperations, cloudPlatformFields } from './CloudPlatformDescription';
 import { currencyOperations, currencyFields } from './CurrencyDescription';
 import { levelTwoAreaOperations, levelTwoAreaFields } from './LevelTwoAreaDescription';
 import { mailTemplateOperations, mailTemplateFields } from './MailTemplateDescription';
+import { tagOperations, tagFields } from './TagDescription';
 
 export class TeamleaderFocus implements INodeType {
 	description: INodeTypeDescription = {
@@ -121,6 +123,7 @@ export class TeamleaderFocus implements INodeType {
 				options: [
 					{ name: 'Account', value: 'account' },
 					{ name: 'Bookkeeping Submission', value: 'bookkeepingSubmission' },
+					{ name: 'Business Type', value: 'businessType' },
 					{ name: 'Call', value: 'call' },
 					{ name: 'Cloud Platform', value: 'cloudPlatform' },
 					{ name: 'Closing Day', value: 'closingDay' },
@@ -159,6 +162,7 @@ export class TeamleaderFocus implements INodeType {
 					{ name: 'Receipt', value: 'receipt' },
 					{ name: 'Reservation', value: 'reservation' },
 					{ name: 'Subscription', value: 'subscription' },
+					{ name: 'Tag', value: 'tag' },
 					{ name: 'Task', value: 'task' },
 					{ name: 'Team', value: 'team' },
 					{ name: 'Ticket', value: 'ticket' },
@@ -267,6 +271,8 @@ export class TeamleaderFocus implements INodeType {
 			// Utilities
 			...accountOperations,
 			...accountFields,
+			...businessTypeOperations,
+			...businessTypeFields,
 			...cloudPlatformOperations,
 			...cloudPlatformFields,
 			...currencyOperations,
@@ -275,6 +281,8 @@ export class TeamleaderFocus implements INodeType {
 			...levelTwoAreaFields,
 			...mailTemplateOperations,
 			...mailTemplateFields,
+			...tagOperations,
+			...tagFields,
 		],
 	};
 
@@ -2491,6 +2499,15 @@ export class TeamleaderFocus implements INodeType {
 				}
 
 				// ==============================
+				//         TAG
+				// ==============================
+				else if (resource === 'tag') {
+					if (operation === 'getMany') {
+						responseData = await handleGetMany.call(this, i, '/tags.list');
+					}
+				}
+
+				// ==============================
 				//         FILE
 				// ==============================
 				else if (resource === 'file') {
@@ -2957,6 +2974,15 @@ export class TeamleaderFocus implements INodeType {
 							body.language = language;
 						}
 						responseData = await teamleaderApiRequest.call(this, 'POST', '/levelTwoAreas.list', body);
+					}
+				}
+
+				else if (resource === 'businessType') {
+					if (operation === 'getMany') {
+						const country = this.getNodeParameter('country', i) as string;
+						responseData = await handleGetMany.call(this, i, '/businessTypes.list', {
+							filter: { country },
+						});
 					}
 				}
 

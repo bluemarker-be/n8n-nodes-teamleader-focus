@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.13] - 2026-09-29
+
+_Two new list-only resources exposed for migration workflows — previously only available as internal dropdown helpers._
+
+### Added
+
+- **Tag — Get Many**: new resource exposing `POST /tags.list`. Returns all tags in the account as `{tag: string}` objects (Teamleader tags have no id — the tag string is the identifier). Supports `Return All` + `Limit` pagination via `handleGetMany`. Useful for bulk migration workflows that need to enumerate all tags before re-applying them elsewhere.
+- **Business Type — Get Many**: new resource exposing `POST /businessTypes.list`. Returns country-specific company legal-entity types (e.g. BVBA, BV, GmbH) as `{id, name, country, ...}` objects. Requires `Country` parameter (2-letter code, default `BE`) — business types are per-country in Teamleader's data model. Supports `Return All` + `Limit` pagination.
+
+### Notes
+
+- The existing `getTags` / `getBusinessTypes` `loadOptions` helpers (used by dropdown fields on Company/Contact) are unchanged — this release only adds them as standalone resources you can call from a workflow node.
+
 ## [0.2.12] - 2026-09-24
 
 _Session 6 continuation — remaining spec-review gaps addressed after final verification._
