@@ -3228,74 +3228,88 @@ async function handleGetMany(
 	addIncludes(endpoint, body);
 
 	// Add filters
+	let filters: IDataObject = {};
 	try {
-		const filters = this.getNodeParameter('filters', itemIndex, {}) as IDataObject;
-		if (Object.keys(filters).length > 0) {
-			const filter = buildFilter(filters);
-			// Handle comma-separated ID fields
-			for (const idField of ['ids', 'project_ids']) {
-				if (filter[idField] && typeof filter[idField] === 'string') {
-					filter[idField] = (filter[idField] as string).split(',').map((id) => id.trim());
-				}
-			}
-			// Nest subject_type + subject_id into subject: { type, id }
-			if (filter.subject_type && filter.subject_id) {
-				filter.subject = { type: filter.subject_type, id: filter.subject_id };
-				delete filter.subject_type;
-				delete filter.subject_id;
-			}
-			// Nest relates_to_type + relates_to_id into relates_to: { type, id }
-			if (filter.relates_to_type && filter.relates_to_id) {
-				filter.relates_to = { type: filter.relates_to_type, id: filter.relates_to_id };
-				delete filter.relates_to_type;
-				delete filter.relates_to_id;
-			}
-			// Nest supplier_type + supplier_id into supplier: { type, id }
-			if (filter.supplier_type && filter.supplier_id) {
-				filter.supplier = { type: filter.supplier_type, id: filter.supplier_id };
-				delete filter.supplier_type;
-				delete filter.supplier_id;
-			}
-			// Build paid_at operator filter: { operator, value?, start?, end? }
-			if (filter.paid_at_operator) {
-				const toDate = (v: unknown): string | undefined => {
-					if (typeof v !== 'string' || !v) return undefined;
-					return v.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? v;
-				};
-				const paidAt: IDataObject = { operator: filter.paid_at_operator };
-				const value = toDate(filter.paid_at_value);
-				const start = toDate(filter.paid_at_start);
-				const end = toDate(filter.paid_at_end);
-				if (value) paidAt.value = value;
-				if (start) paidAt.start = start;
-				if (end) paidAt.end = end;
-				filter.paid_at = paidAt;
-				delete filter.paid_at_operator;
-				delete filter.paid_at_value;
-				delete filter.paid_at_start;
-				delete filter.paid_at_end;
-			}
-			// Wrap email filter as { type: 'primary', email: value } for contacts/companies .list
-			if (filter.email && typeof filter.email === 'string') {
-				filter.email = { type: 'primary', email: filter.email };
-			}
-			// Unwrap fixedCollection filters (e.g. event attendee, link)
-			for (const fcField of ['attendee', 'link']) {
-				if (filter[fcField] && typeof filter[fcField] === 'object' && (filter[fcField] as IDataObject)[fcField]) {
-					const inner = (filter[fcField] as IDataObject)[fcField];
-					filter[fcField] = Array.isArray(inner) ? inner[0] : inner;
-				}
-			}
-			// Split comma-separated ID/type list fields into arrays
-			for (const listField of ['plannable_item_ids', 'work_type_ids', 'types']) {
-				if (filter[listField] && typeof filter[listField] === 'string') {
-					filter[listField] = (filter[listField] as string).split(',').map((v) => v.trim());
-				}
-			}
-			body.filter = filter;
-		}
+		filters = this.getNodeParameter('filters', itemIndex, {}) as IDataObject;
 	} catch {
 		// No filters parameter for this resource
+	}
+	if (Object.keys(filters).length > 0) {
+		const filter = buildFilter(filters);
+		// Handle comma-separated ID fields
+		for (const idField of ['ids', 'project_ids']) {
+			if (filter[idField] && typeof filter[idField] === 'string') {
+				filter[idField] = (filter[idField] as string).split(',').map((id) => id.trim());
+			}
+		}
+		// Nest subject_type + subject_id into subject: { type, id }
+		if (filter.subject_type && filter.subject_id) {
+			filter.subject = { type: filter.subject_type, id: filter.subject_id };
+			delete filter.subject_type;
+			delete filter.subject_id;
+		}
+		// Nest relates_to_type + relates_to_id into relates_to: { type, id }
+		if (filter.relates_to_type && filter.relates_to_id) {
+			filter.relates_to = { type: filter.relates_to_type, id: filter.relates_to_id };
+			delete filter.relates_to_type;
+			delete filter.relates_to_id;
+		}
+		// Nest supplier_type + supplier_id into supplier: { type, id }
+		if (filter.supplier_type && filter.supplier_id) {
+			filter.supplier = { type: filter.supplier_type, id: filter.supplier_id };
+			delete filter.supplier_type;
+			delete filter.supplier_id;
+		}
+		// Nest customer_type + customer_id into customer: { type, id } (e.g. invoices.list)
+		if (filter.customer_id) {
+			if (!filter.customer_type) {
+				throw new NodeOperationError(
+					this.getNode(),
+					'The Customer ID filter requires a Customer Type',
+					{ itemIndex },
+				);
+			}
+			filter.customer = { type: filter.customer_type, id: filter.customer_id };
+		}
+		delete filter.customer_type;
+		delete filter.customer_id;
+		// Build paid_at operator filter: { operator, value?, start?, end? }
+		if (filter.paid_at_operator) {
+			const toDate = (v: unknown): string | undefined => {
+				if (typeof v !== 'string' || !v) return undefined;
+				return v.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? v;
+			};
+			const paidAt: IDataObject = { operator: filter.paid_at_operator };
+			const value = toDate(filter.paid_at_value);
+			const start = toDate(filter.paid_at_start);
+			const end = toDate(filter.paid_at_end);
+			if (value) paidAt.value = value;
+			if (start) paidAt.start = start;
+			if (end) paidAt.end = end;
+			filter.paid_at = paidAt;
+			delete filter.paid_at_operator;
+			delete filter.paid_at_value;
+			delete filter.paid_at_start;
+			delete filter.paid_at_end;
+		}
+		// Wrap email filter as { type: 'primary', email: value } for contacts/companies .list
+		if (filter.email && typeof filter.email === 'string') {
+			filter.email = { type: 'primary', email: filter.email };
+		}
+		// Unwrap fixedCollection filters (e.g. event attendee, link)
+		for (const fcField of ['attendee', 'link']) {
+			if (filter[fcField] && typeof filter[fcField] === 'object' && (filter[fcField] as IDataObject)[fcField]) {
+				const inner = (filter[fcField] as IDataObject)[fcField];
+				filter[fcField] = Array.isArray(inner) ? inner[0] : inner;
+			}
+		}
+		// Split comma-separated ID/type list fields into arrays
+		for (const listField of ['plannable_item_ids', 'work_type_ids', 'types']) {
+			if (filter[listField] && typeof filter[listField] === 'string') {
+				filter[listField] = (filter[listField] as string).split(',').map((v) => v.trim());
+			}
+		}
+		body.filter = filter;
 	}
 
 	// Add sort

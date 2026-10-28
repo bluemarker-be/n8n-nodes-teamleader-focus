@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-28
+
+_Invoice → Get Many now exposes every filter that `invoices.list` supports in API spec 1.220.0._
+
+### Added
+
+Eleven new filters on **Invoice → Get Many** (`POST /invoices.list`):
+
+- **Deal ID** — `filter.deal_id`
+- **Project ID** — `filter.project_id`
+- **Subscription ID** — `filter.subscription_id`
+- **Customer Type** + **Customer ID** — sent as `filter.customer: { type, id }`
+- **IDs** — comma-separated, sent as `filter.ids` array
+- **Search Term** — `filter.term`, searches invoice number, purchase order number, payment reference and invoicee
+- **Invoice Number** — `filter.invoice_number`, full number such as `2017 / 5`
+- **Purchase Order Number** — `filter.purchase_order_number`
+- **Payment Reference** — `filter.payment_reference`
+- **Invoice Date After** / **Invoice Date Before** — inclusive, sent as `YYYY-MM-DD`
+
+### Changed
+
+- Get Many filter processing no longer runs inside the `try/catch` that guards reading the `filters` parameter. Errors raised while building a filter now surface instead of being silently swallowed. Setting Customer ID without Customer Type now fails with a clear error.
+
 ## [0.3.0] - 2026-09-29
 
 _Twelve new lookup resources exposed for migration workflows — previously only available as internal `loadOptions` dropdown helpers. Minor bump because these are substantive new user-facing resources._
