@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-28
+
+_Every operation now returns the literal Teamleader response, and related objects can be sideloaded on every operation that has relationships._
+
+### ⚠ BREAKING
+
+- **Output is the raw API response.** The node no longer unwraps `data`. A Get returns `{ data: {…} }`, and the response's `included` and `meta` are kept when present.
+  - **Migrate:** change expressions such as `{{ $json.title }}` to `{{ $json.data.title }}`.
+- **Get Many returns one item**, `{ data: [records], included?, meta? }`, instead of one item per record.
+  - **Migrate:** add a **Split Out** node on `data` after Get Many to get one item per record again.
+  - With **Return All**, every page is combined into that single response. `included` is merged per type without duplicates, and `meta` comes from the first page that returns it.
+
+### Added
+
+- **Sideload Related Objects** on 67 operations, mostly Get and Get Many. The option sends Teamleader's `include` parameter and returns the related objects under `included`, grouped by type, without extra API calls. The paths are generated from API spec 1.220.0. They cover every `{type, id}` relationship up to one array deep, such as `deal`, `invoicee.customer`, `lead.customer` and `custom_fields.definition`. Deeper ids such as `grouped_lines.line_items.product` are left out. Invalid or stale paths fail that item with an error that lists the available paths.
+- **Always-on `includes` from the spec.** Every documented `includes` value is now requested automatically, next to the existing ones:
+  - `pagination`, which adds `meta.matches`, on `calls.list`, `closingDays.list`, `dealPipelines.list`, `expenses.list`, `projects-v2/projects.list`, `tickets.listMessages`, `userSchedules.list` and `users.listDaysOff`.
+  - `expiry` on `quotations.info` and `quotations.list`.
+- `scripts/generate-sideload-paths.js` (`npm run generate:sideload`) regenerates `SideloadOptions.ts` from the newest spec. It also checks that every operation maps to exactly one endpoint.
+
+### Changed
+
+- `includes` and `include` are now applied centrally, for the endpoint of the operation being executed. Direct calls such as `tickets.listMessages` now also get their `includes`. Dropdown loading (loadOptions) and the Trigger node are unchanged.
+
 ## [0.3.1] - 2026-10-28
 
 _Invoice → Get Many now exposes every filter that `invoices.list` supports in API spec 1.220.0._

@@ -12,10 +12,14 @@ import { NodeOperationError } from 'n8n-workflow';
 import {
 	teamleaderApiRequest,
 	teamleaderApiRequestAllItems,
+	teamleaderApiRequestAllPages,
 	mapCustomFields,
 	buildFilter,
 	addIncludes,
+	setOperationContext,
+	clearOperationContext,
 } from './GenericFunctions';
+import { sideloadFields, getOperationEndpoint, normalizeSideload } from './SideloadDescription';
 
 // CRM
 import { contactOperations, contactFields } from './ContactDescription';
@@ -331,6 +335,8 @@ export class TeamleaderFocus implements INodeType {
 			...withholdingTaxRateFields,
 			...workTypeOperations,
 			...workTypeFields,
+			// Sideloading (`include`), generated per operation — keep last
+			...sideloadFields,
 		],
 	};
 
@@ -626,10 +632,33 @@ export class TeamleaderFocus implements INodeType {
 
 		const resource = this.getNodeParameter('resource', 0) as string;
 		const operation = this.getNodeParameter('operation', 0) as string;
+		const operationEndpoint = getOperationEndpoint(resource, operation);
 
 		for (let i = 0; i < items.length; i++) {
 			try {
 				let responseData: IDataObject | IDataObject[] | undefined;
+
+				// Requests to this operation's endpoint get its `includes` and the
+				// selected sideload paths (see teamleaderApiRequest).
+				if (operationEndpoint) {
+					const { include, invalid } = normalizeSideload(
+						this.getNodeParameter('include', i, []),
+						operationEndpoint.paths,
+					);
+					if (invalid.length > 0) {
+						throw new NodeOperationError(
+							this.getNode(),
+							`Sideload Related Objects: ${invalid.map((p) => `"${p}"`).join(', ')} not available for this operation`,
+							{
+								itemIndex: i,
+								description: operationEndpoint.paths.length
+									? `Available: ${operationEndpoint.paths.join(', ')}`
+									: 'This operation has no related objects to sideload.',
+							},
+						);
+					}
+					setOperationContext(this, operationEndpoint.endpoint, include);
+				}
 
 				// ==============================
 				//         CONTACT
@@ -3125,23 +3154,15 @@ export class TeamleaderFocus implements INodeType {
 					}
 				}
 
-				// Build output
+				// Build output: the Teamleader response is passed through as-is,
+				// i.e. { data, included?, meta? } — one output item per input item.
 				const prevLength = returnData.length;
 				if (responseData !== undefined) {
-					if (Array.isArray(responseData)) {
-						const executionData = this.helpers.constructExecutionMetaData(
-							this.helpers.returnJsonArray(responseData),
-							{ itemData: { item: i } },
-						);
-						returnData.push(...executionData);
-					} else {
-						const data = (responseData.data as IDataObject) ?? responseData;
-						const executionData = this.helpers.constructExecutionMetaData(
-							this.helpers.returnJsonArray(data),
-							{ itemData: { item: i } },
-						);
-						returnData.push(...executionData);
-					}
+					const executionData = this.helpers.constructExecutionMetaData(
+						this.helpers.returnJsonArray(responseData),
+						{ itemData: { item: i } },
+					);
+					returnData.push(...executionData);
 				}
 				// Ensure every input item produces at least one output item
 				if (returnData.length === prevLength) {
@@ -3156,6 +3177,8 @@ export class TeamleaderFocus implements INodeType {
 					continue;
 				}
 				throw error;
+			} finally {
+				clearOperationContext(this);
 			}
 		}
 
@@ -3220,7 +3243,7 @@ async function handleGetMany(
 	itemIndex: number,
 	endpoint: string,
 	extraBody: IDataObject = {},
-): Promise<IDataObject[]> {
+): Promise<IDataObject> {
 	const returnAll = this.getNodeParameter('returnAll', itemIndex, false) as boolean;
 	const body: IDataObject = { ...extraBody };
 
@@ -3322,14 +3345,15 @@ async function handleGetMany(
 		// No sort parameter for this resource
 	}
 
+	// The Teamleader response is returned as-is ({ data, included?, meta? });
+	// Return All combines every page into one response of the same shape.
 	if (returnAll) {
-		return teamleaderApiRequestAllItems.call(this, endpoint, body);
+		return teamleaderApiRequestAllPages.call(this, endpoint, body);
 	}
 
 	const limit = this.getNodeParameter('limit', itemIndex) as number;
 	body.page = { size: limit, number: 1 };
-	const response = await teamleaderApiRequest.call(this, 'POST', endpoint, body);
-	return (response.data as IDataObject[]) ?? [];
+	return teamleaderApiRequest.call(this, 'POST', endpoint, body);
 }
 
 function processContactCompanyFields(fields: IDataObject): IDataObject {

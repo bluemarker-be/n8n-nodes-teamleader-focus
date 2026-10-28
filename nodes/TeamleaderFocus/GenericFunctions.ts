@@ -10,6 +10,7 @@ import type {
 	JsonObject,
 } from 'n8n-workflow';
 import { NodeApiError } from 'n8n-workflow';
+import { SPEC_INCLUDES } from './SideloadOptions';
 
 const BASE_URL = 'https://api.focus.teamleader.eu';
 const MAX_RETRIES = 3;
@@ -151,6 +152,17 @@ export async function teamleaderApiRequest(
 	endpoint: string,
 	body: IDataObject = {},
 ): Promise<IDataObject> {
+	// Requests for the operation the node is currently executing always get
+	// the endpoint's `includes`, plus the selected sideload `include` paths.
+	// Requests without an operation context (loadOptions, Trigger) are untouched.
+	const operationContext = operationContexts.get(this);
+	if (operationContext && operationContext.endpoint === endpoint) {
+		addIncludes(endpoint, body);
+		if (operationContext.include.length > 0) {
+			body.include = operationContext.include.join(',');
+		}
+	}
+
 	// Convert date-only fields from ISO timestamps to YYYY-MM-DD
 	sanitizeDateFields(body);
 
@@ -212,8 +224,25 @@ export async function teamleaderApiRequest(
 }
 
 /**
- * Mapping of endpoints to their available `includes` values.
- * These are automatically added to requests to always return full data.
+ * Per-execution context for the operation currently being executed:
+ * the endpoint it calls and the sideload paths selected for the current item.
+ * Keyed by the execute-functions object, so loadOptions and Trigger calls
+ * (which use other context objects) never pick it up.
+ */
+const operationContexts = new WeakMap<object, { endpoint: string; include: string[] }>();
+
+export function setOperationContext(ctx: object, endpoint: string, include: string[]): void {
+	operationContexts.set(ctx, { endpoint, include });
+}
+
+export function clearOperationContext(ctx: object): void {
+	operationContexts.delete(ctx);
+}
+
+/**
+ * Hand-maintained `includes` values per endpoint. Merged with the values
+ * documented in the spec (SPEC_INCLUDES, generated) and always sent, so
+ * responses contain every optional field and pagination `meta`.
  */
 const ENDPOINT_INCLUDES: Record<string, string> = {
 	'/contacts.list': 'custom_fields,price_list',
@@ -237,13 +266,77 @@ const ENDPOINT_INCLUDES: Record<string, string> = {
 };
 
 /**
- * Add `includes` parameter to the request body if the endpoint supports it.
+ * Add the `includes` parameter to the request body if the endpoint supports it:
+ * the union of ENDPOINT_INCLUDES and the spec-documented SPEC_INCLUDES.
  */
 export function addIncludes(endpoint: string, body: IDataObject): void {
-	const includes = ENDPOINT_INCLUDES[endpoint];
-	if (includes) {
-		body.includes = includes;
+	const values = new Set<string>();
+	for (const v of (ENDPOINT_INCLUDES[endpoint] ?? '').split(',')) if (v) values.add(v);
+	for (const v of SPEC_INCLUDES[endpoint] ?? []) values.add(v);
+	if (values.size > 0) {
+		body.includes = [...values].join(',');
 	}
+}
+
+/**
+ * Fetch every page of a list endpoint and combine them into one response
+ * that keeps Teamleader's shape: `{ data, included?, meta? }`.
+ *
+ * - `data`: records of all pages, in page order.
+ * - `included`: grouped by type; an object's identity is its group plus `id`,
+ *   the first occurrence wins. Objects without an `id` are kept.
+ * - `meta`: from the first page that returns one (so `meta.page` describes
+ *   that page; `meta.matches` is the total).
+ *
+ * Paging stops after a page with fewer than `pageSize` records. Any failing
+ * page throws, so a partial result is never returned.
+ */
+export async function teamleaderApiRequestAllPages(
+	this: IExecuteFunctions,
+	endpoint: string,
+	body: IDataObject = {},
+	pageSize = 100,
+): Promise<IDataObject> {
+	const data: IDataObject[] = [];
+	const included: Record<string, IDataObject[]> = {};
+	const seen: Record<string, Set<string>> = {};
+	let hasIncluded = false;
+	let meta: IDataObject | undefined;
+	let pageNumber = 1;
+	let pageLength: number;
+
+	do {
+		body.page = { size: pageSize, number: pageNumber };
+		const response = await teamleaderApiRequest.call(this, 'POST', endpoint, body);
+		const pageData = Array.isArray(response.data) ? (response.data as IDataObject[]) : [];
+		data.push(...pageData);
+		pageLength = pageData.length;
+
+		if (response.included && typeof response.included === 'object') {
+			hasIncluded = true;
+			for (const [type, objects] of Object.entries(response.included as IDataObject)) {
+				included[type] ??= [];
+				seen[type] ??= new Set();
+				for (const object of Array.isArray(objects) ? (objects as IDataObject[]) : []) {
+					const id = object?.id;
+					if (typeof id === 'string' || typeof id === 'number') {
+						if (seen[type].has(String(id))) continue;
+						seen[type].add(String(id));
+					}
+					included[type].push(object);
+				}
+			}
+		}
+		if (meta === undefined && response.meta !== undefined) {
+			meta = response.meta as IDataObject;
+		}
+		pageNumber++;
+	} while (pageLength === pageSize);
+
+	const result: IDataObject = { data };
+	if (hasIncluded) result.included = included;
+	if (meta !== undefined) result.meta = meta;
+	return result;
 }
 
 export async function teamleaderApiRequestAllItems(

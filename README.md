@@ -110,6 +110,33 @@ Supported events include:
 
 Configure the events you want to receive in the trigger node — the node handles subscription lifecycle and returns the raw event payload as workflow input.
 
+## Output
+
+Every operation returns the Teamleader API response as-is. The common shape is:
+
+```json
+{
+  "data": { "id": "…", "deal": { "type": "deal", "id": "…" } },
+  "included": { "deal": [{ "id": "…", "title": "…" }] },
+  "meta": { "page": { "size": 20, "number": 1 }, "matches": 42 }
+}
+```
+
+- `data` is the object (Get) or the array of records (Get Many). Reference fields as `{{ $json.data.title }}`.
+- `included` is present only when you selected **Sideload Related Objects**.
+- `meta` is present when Teamleader returns it, for example the total `matches` on list endpoints that support pagination info.
+- **Get Many returns one item** holding all records in `data`. Add a **Split Out** node on `data` to get one item per record.
+- **Return All** is the one exception to "as-is": all pages are combined into one response of the same shape. `data` holds every record in page order, and `included` is merged per type without duplicates. `meta` comes from the first page that has it, so `meta.page` describes that page, while `meta.matches` is the total.
+- File downloads still return the file as binary data, next to its metadata.
+
+## Sideloading
+
+Most `Get` and `Get Many` operations have a **Sideload Related Objects** option. Each choice is a dot-path to a related object, such as `deal`, `invoicee.customer` or `custom_fields.definition`. The related objects are fetched in the same request, without extra API calls, and returned under `included`, grouped by type. Look an object up with the `type` and `id` of the reference in `data`.
+
+On Get Many, every related object appears once in `included`, even when many records point to it. For example, 2,000 deals that share 15 responsible users give 15 users in `included`.
+
+The options are generated from the Teamleader API spec. They cover relationships up to one list deep: `custom_fields.definition` is offered, but `grouped_lines.line_items.product` is not. See the [Teamleader sideloading docs](https://developer.focus.teamleader.eu/docs/sideloading).
+
 ## Automatic behaviors
 
 - **Pagination**: `Get Many` operations expose a **Return All** toggle. When enabled, all pages are fetched automatically (page size clamped to the API max of 100). When disabled, use **Limit** to cap results.
@@ -117,7 +144,7 @@ Configure the events you want to receive in the trigger node — the node handle
 - **Date formatting**: n8n's dateTime picker outputs ISO 8601. The node automatically converts date-only fields (`invoice_date`, `starts_on`, etc.) to `YYYY-MM-DD` and timestamp fields (`started_at`, `due_at`, etc.) to the `+00:00`-offset format the Teamleader API expects.
 - **Rate limiting**: Teamleader allows 200 requests/minute (sliding window). The node handles `429` responses by reading the `x-ratelimit-reset` header and waiting until the oldest request expires, up to 3 retries.
 - **Token refresh**: expired OAuth2 access tokens are refreshed automatically via the credential; the node also retries once on `401` responses to handle single-use refresh-token race conditions.
-- **Includes**: resources that return richer data via `includes=` (custom fields, related entities, price lists, etc.) have the relevant includes applied automatically. No configuration required.
+- **Includes**: every optional `includes=` value the API documents is always requested, such as custom fields, price lists, late fees, quotation expiry and pagination info (`meta`). No configuration required. This is separate from sideloading, which uses the singular `include` parameter.
 
 ## Spec alignment
 
